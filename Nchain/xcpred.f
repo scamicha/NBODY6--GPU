@@ -27,16 +27,20 @@
           NNB2 = LISTC(1) + 1
       END IF
 *
-*       Predict coordinates of perturbers & possibly c.m. to order FDOT.
+*       Predict X & XDOT of perturbers and (if needed) c.m. to order FDOT.
       DO 1 L = 2,NNB2
           J = LISTC(L)
           S = TIME - T0(J)
-*       Do not allow prediction outside range (NB! No bad effects in DIFSY1).
+          S1 = 1.5*S
+          S2 = 2.0*S
+*       Note no bad effects in DIFSY1 for prediction outside range.
 *         S = MIN(S,STEP(J))
           X(1,J) = ((FDOT(1,J)*S + F(1,J))*S + X0DOT(1,J))*S + X0(1,J)
           X(2,J) = ((FDOT(2,J)*S + F(2,J))*S + X0DOT(2,J))*S + X0(2,J)
           X(3,J) = ((FDOT(3,J)*S + F(3,J))*S + X0DOT(3,J))*S + X0(3,J)
-*       Note most recent velocities are used for perturber integration.
+          XDOT(1,J) = (FDOT(1,J)*S1 + F(1,J))*S2 + X0DOT(1,J)
+          XDOT(2,J) = (FDOT(2,J)*S1 + F(2,J))*S2 + X0DOT(2,J)
+          XDOT(3,J) = (FDOT(3,J)*S1 + F(3,J))*S2 + X0DOT(3,J)
     1 CONTINUE
 *
 *       Obtain global coordinates & velocities from current chain & c.m.
@@ -52,4 +56,3 @@
       RETURN
 *
       END
-

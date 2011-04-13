@@ -31,9 +31,6 @@
       X0(1,J) = 1.0E+06
       X(1,J) = 1.0E+06
 *
-*       Specify zero neighbour membership.
-      LIST(1,J) = 0
-*
 *       Copy neighbour list for routine NBREM.
       NNB = LIST(1,J)
       DO 20 L = 2,NNB+1
@@ -43,6 +40,9 @@
 *       Remove ghost from lists of neighbours containing body #ICH.
       JLIST(1) = J
       CALL NBREM(ICH,1,NNB)
+*
+*       Specify zero neighbour membership.
+      LIST(1,J) = 0
 *
       RETURN
 *

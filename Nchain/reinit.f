@@ -1,4 +1,3 @@
-
       SUBROUTINE REINIT(ISUB)
 *
 *

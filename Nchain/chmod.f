@@ -345,9 +345,12 @@
       RESC = MAX(3.0*RGRAV,DESC)
       AINV = 2.0/RB - VREL2/BCM
       EB = -0.5*BODYC(IESC)*BODYC(JESC)*AINV
+      HI = 0.5*RDOT**2 - BODY(ICH)/RI
 *
 *       Employ parabolic escape criterion (terminate if RI > RMIN & NCH < 5).
-      IF (RI.GT.RESC.AND.RDOT.GT.0.0.AND.RB*AINV.GT.0.99) THEN
+      IF ((RI.GT.RESC.AND.RDOT.GT.0.0.AND.RB*AINV.GT.0.99).OR.
+     &    (HI.GT.0.0.AND.RI.GT.3.0*RMIN)) THEN
+*       Decide between weakly bound and escape orbit (RMAXS may be large).
           IF (RDOT**2.LT.2.0*BODY(ICH)/RI) THEN
 *       Define effective perturbation using remaining size.
               GB = 2.0*BCM/(BODY(ICH) - BCM)*((RSUM - RJB - RB)/RI)**3
@@ -383,7 +386,6 @@
                   GO TO 60
               END IF
           ELSE
-              HI = 0.5*RDOT**2 - BODY(ICH)/RI
               IF (HI.GT.0.0) THEN
                   VINF = SQRT(2.0*HI)*VSTAR
               ELSE
@@ -430,9 +432,11 @@
       RESC = MAX(5.0*RGRAV,DESC)
       RESC = MIN(RESC,3.0*RMIN)
       IF (NN.EQ.3.AND.RESC.LT.0.001*RMIN) RESC = 5.0*RESC
+*       Facilitate termination for wide perturbed triple.
+      IF (NN.EQ.3.AND.GPERT.GT.0.01.AND.RI.GT.2.0*RMIN) RESC = 2.0*RMIN
       IF (RM.GT.RESC.AND.RDOT.GT.0.0) THEN
           IF (RDOT**2.LT.2.0*BODY(ICH)/RI) THEN
-              FAC2 = 2.0*BODY(IESC)/(BODY(ICH) - BODYC(IESC))
+              FAC2 = 2.0*BODYC(IESC)/(BODY(ICH) - BODYC(IESC))
               GI = FAC2*((RSUM - 1.0/RINV(IM))/RI)**3
 *       Do not permit large length contrast even for bound orbit (NN = 4).
               IF (NN.EQ.4.AND.GI.LT.0.01) THEN
@@ -448,8 +452,9 @@
               END IF
               ER = 0.5*RDOT**2 - BODY(ICH)/RI
               RX = -BODY(ICH)/ER
+*       Deny continuation of soft configuration with large external pert.
               IF ((ER.LT.0.0.AND.RX.LT.MIN(2.0*RSUM,2.0*RMIN)).OR.
-     &            (NN.EQ.3.AND.GI.GT.0.1)) THEN
+     &            (RSUM.LT.5.0*RMIN.AND.GPERT.LT.0.01)) THEN
                   KCASE = 0
                   GO TO 60
               END IF
