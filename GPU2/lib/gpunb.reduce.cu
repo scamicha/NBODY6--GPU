@@ -305,7 +305,7 @@ __global__ void gather_nb_kernel(
 }
 
 
-/*// Host Part
+// Host Part
 #ifdef PROFILE
 #include <sys/time.h>
 static double get_wtime(){
@@ -673,5 +673,4 @@ extern "C" {
 			int *list){ // list[][lmax]
 		GPUNB_regf(*ni, h2, xi, vi, acc, jrk, pot, *lmax, *nbmax, list);
 	}
-}*/
-
+}
