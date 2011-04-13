@@ -1,4 +1,3 @@
-
       SUBROUTINE EXPEL2(J1,J2,ICASE)
 *
 *
@@ -61,6 +60,7 @@
       HI = 0.5d0*VIJ2 - ZMB0/RIJ0
       SEMI0 = 2.d0/RIJ0 - VIJ2/ZMB0
       SEMI0 = 1.d0/SEMI0
+      SEMI00 = SEMI0
 *
       ECC2 = (1.D0 - RIJ0/SEMI0)**2 + RDOT**2/(SEMI0*ZMB0)
       ECC = SQRT(ECC2)
@@ -268,6 +268,7 @@
 *
 *       Include potential energy terms due to all non-chain members.
           POTJ = 0.d0
+      RX = 10.
 *       Note no initialization of neighbours done in the chain case.
           DO 50 J = IFIRST,NTOT
               IF (J.NE.I1.AND.J.NE.I2.AND.J.NE.I3.AND.J.NE.I4) THEN
@@ -275,6 +276,7 @@
      &                   (X(2,J) - XCM(2))**2 +
      &                   (X(3,J) - XCM(3))**2
                   POTJ = POTJ - BODY(J)/SQRT(RIJ2)
+      RX = MIN(RX,RIJ2)
               END IF
    50     CONTINUE
 *
@@ -290,22 +292,30 @@
 *       Add both potential energy contributions to yield final correction.
           ECDOT = ECDOT + DM*POTJ + (POT2 - POT1)
 *
+          WRITE (6,55)  DM*POTJ, SQRT(RX), SEMI00*SU, SEMI0*SU, EBS
+   55     FORMAT (' EXPEL2!    DM*POTJ RX A00 A0 EBS ',1P,6E10.2)
           WRITE (6,60)  (NAME(JLIST(K)),K=1,4), KSTAR(I1), KSTAR(I2),
      &                  KW1, KW2, M1, M2, DM*ZMBAR, ECC, R1, R2,
      &                  SEMI0*SU, SEMI*SU, EBS, POT2-POT1
    60     FORMAT (' CHAIN CE    NAM K0* K* M1 M2 DM E R1 R2 A0 A EB DP',
      &                          4I6,4I3,3F5.1,F8.4,2F6.1,2F8.1,1P,2E9.1)
+*       Flag hyperbolic chain CE.
+          IF (SEMI0.LT.0.0) THEN
+              WRITE (6,61)  TIME+TOFF
+   61         FORMAT (' HYPERB CHAIN CE    T ',F7.1)
+          END IF
 *
           KSTAR(I1) = KW1
           KSTAR(I2) = KW2
           IPHASE = 0
+          IF (ECC.LE.0.001D0) NCE = NCE + 1
 *       Include possible NS or BH kick.
-          IF (KW1.EQ.13.OR.KW1.EQ.14) THEN
+          IF (KW1.GE.10.AND.KW1.LE.14) THEN
 *       Save chain members to prevent possible over-writing in HIVEL.
               DO 62 L = 1,NCH
                   JPERT(L) = JLIST(L)
    62         CONTINUE
-              CALL KICK(I1,1)
+              CALL KICK(I1,1,KW1)
               DO 65 L = 1,NCH
                   JLIST(L) = JPERT(L)
    65         CONTINUE

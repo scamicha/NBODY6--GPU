@@ -21,7 +21,7 @@
       GAMX = 0.0
       IF (LISTC(1).EQ.0) GO TO 40
 *
-*       Determine global values of XC first time.
+*       Determine global values of XC first time (also called in REINIT).
       IF (TIMEC.EQ.0.0D0) THEN
           CALL XCPRED(0)
       END IF

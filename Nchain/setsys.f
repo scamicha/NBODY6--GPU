@@ -47,7 +47,7 @@
       CM(9) = EBCH0
 *
 *       Include treatment for near-synchronous binary as inert body (B-B).
-      IF (JCLOSE.GT.N.AND.KZ(27).GT.0.AND.KZ(26).LT.2) THEN
+      IF (JCLOSE.GT.N.AND.KZ(26).LT.2) THEN
           RSUM = RMIN
           NCH = 2
           GO TO 10

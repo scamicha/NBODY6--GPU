@@ -33,6 +33,7 @@
 *
 *       Prepare KS regularization(s) and direct integration of other bodies.
       CALL R2SORT(IJ,R2)
+*       Save dominant pair (note change from MIN(R2) to M/R2; SJA 08/2009).
       I1 = IJ(1)
       I2 = IJ(2)
       I3 = IJ(3)
@@ -145,6 +146,8 @@
 *
 *       Update time for new polynomial initializations (also for CMBODY).
       TIME = TPREV + DTN
+*       Adopt block time in rare case of DT2 reduced to SMAX.
+      IF (DTN.LE.SMAX) TIME = TBLOCK
 *
 *       Set TIMEC for collision to preserve TIME2 after T0S = TIME in SUBSYS.
       IF (ITERM.LT.0.0) TIMEC = T0S(ISUB) + TIMEC - TIME
@@ -177,6 +180,7 @@
       JLIST(12) = I6
 *
 *       Place new coordinates in the original locations.
+      VX2 = 0.0
       DO 40 L = 1,NCH
           J = JLIST(L)
 *       Compare global name & subsystem name to restore the mass & T0.
@@ -188,13 +192,25 @@
    32     CONTINUE
 *       Transform to global coordinates & velocities using c.m. values.
           LL = JLIST(L+6)
+          VJ2 = 0.0
           DO 35 K = 1,3
               X(K,J) = X4(K,LL) + CM(K)
               XDOT(K,J) = XDOT4(K,LL) + CM(K+3)
               X0(K,J) = X(K,J)
               X0DOT(K,J) = XDOT(K,J)
+              VJ2 = VJ2 + XDOT(K,J)**2
    35     CONTINUE
+          IF (VJ2.GT.VX2) THEN
+              VX2 = VJ2
+              JX = J
+          END IF
    40 CONTINUE
+*
+*       Print diagnostics for high-velocity chain escaper after COLL or COAL.
+      IF (ECH.GT.0.5*BODYM*16.0*ECLOSE) THEN
+          WRITE (6,41)  NAME(JX), NCH, ECH, SQRT(VX2)*VSTAR
+   41     FORMAT (' CHAIN DISRUPT    NMX NCH ECH VX ',I7,I4,F8.4,F6.1)
+      END IF
 *
 *       Set one ghost index for skipping neighbour list search.
       JG = ICOMP
@@ -491,7 +507,7 @@
 *       Update number of DIFSY calls, tidal dissipations & collision energy.
       NSTEPC = NSTEPC + NSTEP1
       NDISS = NDISS + NDISS1
-      NSYNC = NSYNC + ISYNC
+      NSYNC = NSYNC + MAX(ISYNC,0)
       ECOLL = ECOLL + ECOLL1
       EGRAV = EGRAV + ECOLL1
       E(10) = E(10) + ECOLL1
