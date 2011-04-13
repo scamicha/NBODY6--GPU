@@ -17,13 +17,13 @@
 #define NNB_PER_BLOCK 256 // NNB per block, must be power of 2
 #define NB_BUF_SIZE (1<<20)
 
-#define MAX_CPU 8
-#define MAX_GPU 3
+#define MAX_CPU 2
+#define MAX_GPU 1
 
 // for clarity, for myself
 #define __out
 
-#define PROFILE
+//#define PROFILE
 
 #define NAN_CHECK(val) assert((val) == (val));
 

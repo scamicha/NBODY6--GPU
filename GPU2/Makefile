@@ -4,7 +4,7 @@ FFLAGS = -O3 -Wall
 #FFLAGS -pg
 CXX = g++ -O3 -Wall -march=core2
 #CXX += pg
-CUDA_PATH = /sw/keeneland/cuda/3.2/linux_binary
+CUDA_PATH = /sw/keeneland/cuda/3.1/linux_binary
 SDK_PATH = /nics/c/home/scamicha/NVIDIA_GPU_Computing_SDK/C
 NVCC = $(CUDA_PATH)/bin/nvcc -Xcompiler "-Wall -O3 -fopenmp" -I $(SDK_PATH)/common/inc/
 NVCC += -arch sm_21 -Xptxas -dlcm=cg
