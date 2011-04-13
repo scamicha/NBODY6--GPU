@@ -5,6 +5,8 @@
 *       ----------------------------------------
 *
       INCLUDE 'common6.h'
+      DATA IW /0/
+      SAVE IW
 *
 *
 *       Adjust neighbour lists to new sequence (skip last or only pair).
@@ -86,7 +88,7 @@
 *       Expand the list to include both components since c.m. was deleted.
           KCASE = 2
 *       Only move neighbours down by one if the list has too many members.
-          IF (NNB.GT.NNBMAX-3) KCASE = 1
+          IF (NNB.GT.LMAX-3) KCASE = 1
           IF (NNB.EQ.0) GO TO 76
 *       In this special case L = 2 already.
           L = NNB + 1
@@ -108,9 +110,11 @@
 *       Do not over-write the list if NNB > NNBMAX after removal of c.m.
           IF (KCASE.EQ.2) LIST(L+1,J) = JCOMP
           LIST(1,J) = NNB + KCASE
-          IF (KCASE.EQ.1) WRITE (6,78)  NNB, J, JCOMP
-   78     FORMAT (5X,'WARNING!  TOO LARGE NNB IN UPDATE    NNB J JCOMP',
-     &                                                              3I6)
+          IF (KCASE.EQ.1.AND.IW.LT.10) THEN
+              WRITE (6,78)  NNB, J, JCOMP
+   78         FORMAT (5X,'WARNING!    UPDATE    NNB J JCOMP ',3I6)
+              IW = IW + 1
+          END IF
    80 CONTINUE
 *
 *       Modify the list of previously regularized binaries.
@@ -188,16 +192,6 @@
           END IF
   130 CONTINUE
 *
-      DO 200 J = IFIRST+2,NTOT
-      NB1 = LIST(1,J)
-      DO 180 L = 2,NB1
-      IF (LIST(L+1,J).LT.LIST(L,J)) THEN
-      WRITE (6,185) NSTEPI, J, L, (LIST(KK,J),KK=1,12)
-  185 FORMAT (' UPDATE TRAP!!   #I J L LIST  ',I9,2I5,2X,12I5)
-      STOP
-      END IF
-  180 CONTINUE
-  200 CONTINUE
       RETURN
 *
       END

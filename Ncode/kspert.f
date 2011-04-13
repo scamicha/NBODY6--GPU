@@ -135,7 +135,7 @@
               IF (J.GT.ICH) GO TO 50
               IF (J.EQ.ICH) THEN
                   J1 = I1
-                  CALL FCHAIN(J1,0,XI(1),VI(1),FP(1),FD(1))
+                  CALL FCHAIN(J1,1,XI(1),VI(1),FP(1),FD(1))
                   J1 = J1 + 1
                   CALL FCHAIN(J1,1,XI(4),VI(4),FP(4),FD(4))
                   GO TO 50
@@ -177,9 +177,8 @@
               RRDOT = RRDOT + (XI(K) - XI(K+3))*(VI(K) - VI(K+3))
    65     CONTINUE
           ZF = 1.0/RI2
-          ZF2 = ZF**1.5
-*       Write current mass inside RI as MP*R3*ZF2 (cf. Heggie & Hut p.73).
-          FMP = MP*ZF2
+*       Write current mass inside RI as MP*R3*ZF^{3/3} (Heggie & Hut p.73).
+          FMP = MP*ZF*SQRT(ZF)
           DO 70 K = 1,3
               XREL = XI(K) - XI(K+3)
               VREL = VI(K) - VI(K+3)
@@ -191,4 +190,3 @@
       RETURN
 *
       END
-

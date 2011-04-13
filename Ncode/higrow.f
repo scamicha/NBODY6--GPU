@@ -17,7 +17,7 @@
       common/rksave/  coeff,HOhat(3),e0,a0,hh,xmb
       REAL*8  A1(3),A2(3),XREL(3),VREL(3),EI(3),HI(3),HO(3),BHAT(3),
      &        UI(4),V(4),EVEC(3),XR0(3),VR0(3),EI0(3),WW(6),W(4)
-      REAL*8  BODYI(2),WG(2)
+      REAL*8  BODYI(2),QG(2),WG(2)
       LOGICAL ICOLL
       DATA  WW  /2.119,3.113,8.175,3.742,4.953,9.413/
       SAVE  ICALL,ITIME,ITRY,NAMEI,DTPREV,TCHECK,ZFAC,PMIN1

@@ -31,10 +31,10 @@
               CALL ORBIT(I,JMIN,SEMI,ECC,GI)
 *
               EB = -0.5*BODY(I)*BODY(JMIN)/SEMI
-              IF (EB.LT.EBH.AND.GI.LT.0.001.AND.JMIN.GE.IFIRST) THEN
+              IF (EB.LT.EBH.AND.GI.LT.0.25.AND.JMIN.GE.IFIRST) THEN
                   APO = SEMI*(1.0 + ECC)
 *       Check eccentricity (cf. max perturbation) and neighbour radius.
-                  IF (ECC.LT.0.25.AND.APO.LT.0.02*RS(I)) THEN
+                  IF (ECC.LT.0.5.AND.APO.LT.0.02*RS(I)) THEN
 *                     WRITE (6,3)  NAME(I), NAME(JMIN), ECC, SEMI, EB
 *   3                 FORMAT (' KS TRY:    NAM E A EB ',
 *    &                                     2I6,F7.3,1P,2E10.2)
@@ -187,23 +187,23 @@
                   J = LISTC(L)
                   IF (J.GT.I) GO TO 70
                   IF (J.EQ.I) THEN
-                      CALL FCHAIN(I,1,XI,XIDOT,FIRR,FD)
+                      CALL FCHAIN(I,0,XI,XIDOT,FIRR,FD)
                       GO TO 70
                   END IF
    65         CONTINUE
           END IF
       END IF 
 *
-*       Check option for external tidal field.
-   70 IF (KZ(14).GT.0) THEN
+*       Check option for external tidal field using predicted FREG.
+   70 DT = TIME - T0(I)
+      IF (KZ(14).GT.0) THEN
           DO 75 K = 1,3
-              FREG(K) = FR(K,I)
+              FREG(K) = FR(K,I) + FRDOT(K,I)*DT
    75     CONTINUE
           CALL XTRNLF(XI,XIDOT,FIRR,FREG,FD,FDUM,0)
       END IF
 *
 *       Include the corrector and set new T0, F, FDOT, D1, D2 & D3.
-      DT = TIME - T0(I)
       DTSQ = DT**2
       DT6 = 6.0D0/(DT*DTSQ)
       DT2 = 2.0D0/DTSQ
@@ -266,7 +266,7 @@
 *       Select discrete value (increased by 2, decreased by 2 or unchanged).
       IF (TTMP.GT.2.0*STEP(I)) THEN
           IF (DMOD(TIME,2.0*STEP(I)).EQ.0.0D0) THEN 
-              TTMP = MIN(2.0*STEP(I),1.0D0)
+              TTMP = MIN(2.0*STEP(I),SMAX)
           ELSE
               TTMP = STEP(I) 
           END IF

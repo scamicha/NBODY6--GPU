@@ -17,22 +17,24 @@
     5     CONTINUE
 *
           KM = 1
+          ZMX = 0.0
           DO 10 J = 1,N
               KW = KSTAR(J) + 1
               KW = MIN(KW,16)
               KW = MAX(KW,1)
               NTYPE(KW) = NTYPE(KW) + 1
               KM = MAX(KM,KW)
+              ZMX = MAX(BODY(J),ZMX)
    10     CONTINUE
 *
           WRITE (6,15)
    15     FORMAT (/,6X,'NMDOT   NRG  NHE  NRS  NNH  NWD  NSN  NBH  NBS',
-     &               '  ZMRG  ZMHE  ZMRS  ZMNH  ZMWD  ZMSN  ZMDOT',
+     &               '  ZMRG  ZMHE   ZMRS  ZMNH  ZMWD  ZMSN   ZMDOT',
      &               '  NTYPE')
           WRITE (6,20)  NMDOT, NRG, NHE, NRS, NNH, NWD, NSN, NBH, NBS,
      &                  ZMRG, ZMHE, ZMRS, ZMNH, ZMWD, ZMSN, ZMDOT,
      &                  (NTYPE(J),J=1,KM)
-   20     FORMAT (' #4',I9,8I5,6F6.1,F7.1,I7,I6,9I4,I5,3I4)
+   20     FORMAT (' #4',I9,8I5,2F6.1,F7.1,3F6.1,F8.1,I7,I6,9I4,I5,3I4)
       END IF
 *
 *       Determine turnoff mass at current cluster age (cf. routine STAR).
@@ -55,17 +57,17 @@
       IF (NDISS + NCOLL + NCOAL.GT.0.OR.EGRAV.LT.0.0D0) THEN
 *       Form the net energy gain in binary interactions.
           DEGRAV = EBIN + ESUB + EBESC + EMESC + EMERGE + EGRAV - EBIN0
-          ZMX = BODY1*SMU
           WRITE (6,30)
-   30     FORMAT (/,5X,'NDISS  NTIDE  NSYNC  NCOLL  NCOAL  NCIRC',
-     &                 '  NROCHE  NRO    EBIN  EMERGE   ECOLL  EMDOT',
-     &                 '  ECDOT  EKICK  ESESC   EBESC  EMESC  DEGRAV',
-     &                 '   EBIND  MMAX')
-          WRITE (6,35)  NDISS, NTIDE, NSYNC, NCOLL, NCOAL, NCIRC,
-     &                  NROCHE, NRO, EBIN, EMERGE, ECOLL, EMDOT, ECDOT,
-     &                  EKICK, ESESC, EBESC, EMESC, DEGRAV, E(3), ZMX
-   35     FORMAT (' #5',I8,I6,4I7,I8,I5,3F8.3,4F7.3,F8.3,F7.3,2F8.3,
-     &                  F6.1)
+   30     FORMAT (/,5X,'NDISS  NTIDE  NSYNC  NCOLL  NCOAL  NDD  NCIRC',
+     &                 '  NROCHE  NRO  NCE  NHYP  NHYPC    EBIN ',
+     &                 '  EMERGE  ECOLL  EMDOT  ECDOT  EKICK  ESESC ',
+     &                 '  EBESC  EMESC  DEGRAV   EBIND  MAXM')
+          WRITE (6,35)  NDISS, NTIDE, NSYNC, NCOLL, NCOAL, NDD, NCIRC,
+     &                  NROCHE, NRO, NCE, NHYP, NHYPC, EBIN, EMERGE,
+     &                  ECOLL, EMDOT, ECDOT, EKICK, ESESC, EBESC,
+     &                  EMESC, DEGRAV, E(3), ZMX*SMU
+   35     FORMAT (' #5',I8,I6,3I7,I5,I7,I8,2I5,I6,I7,3F8.3,4F7.3,F8.3,
+     &                  F7.3,2F8.3,F6.1)
       END IF
 *
       RETURN

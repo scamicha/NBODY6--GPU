@@ -142,11 +142,16 @@
 *       Define apocentre and set 1/2 period for inactive or synchronous case.
                   CALL KSAPO(IPAIR)
                   STEP(I1) = 0.5*TK
+                  ECC2 = (1.0 - R(IPAIR)/SEMI)**2 +
+     &                                    TDOT2(IPAIR)**2/(BODY(I)*SEMI)
+                  ECC = SQRT(ECC2)
 *       Note next unperturbed check at apocentre since T'' < 0 in KSAPO.
                   IF (ABS(RT - RP)/RT.GT.0.1.AND.KZ(27).LE.1) THEN
                       WRITE(6,25)  ECC, SEMI, R(IPAIR), RP, RADIUS(I1)
    25                 FORMAT (' INACTIVE PHASE    E A R RP R* ',
      &                                            F7.3,1P,4E10.2)
+*       Include safety condition for extremely small SEMI (i.e. tiny period).
+                      IF (SEMI.LT.0.001*RMIN) STEP(I1) = STEP(I)
                   END IF
                   IF (ECC.LT.0.002.AND.SEMI.LT.0.01*RMIN) THEN
                       KSTAR(I) = 10

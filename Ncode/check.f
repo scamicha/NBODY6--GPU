@@ -8,7 +8,7 @@
 *
 *
 *       See whether output intervals should be increased (at main output).
-      IF (KZ(32).GT.0.AND.TIME.GE.TNEXT - 20.0*DTMIN) THEN
+      IF (KZ(32).GT.0.AND.TIME.GE.TNEXT) THEN
 *       Check current energy level (factor of 2) for possible increase.
           K = KZ(32)
           ECRIT = 0.25/2.0**K
@@ -18,11 +18,15 @@
               IF (2.0*DTADJ.GT.TDYN.OR.TIME.LE.0.0D0) GO TO 5
               DTADJ = 2.0*DTADJ
               DELTAT = 2.0*DELTAT
+*       Increase SMAX similarly and re-initialize hierarchical step array.
+              SMAX = 2.0*SMAX
+              CALL IBLOCK
               QE = SQRT(2.0)*QE
               KZ(32) = KZ(32) + 1
-              WRITE (6,1)  DTADJ, DELTAT, QE
+              WRITE (6,1)  DTADJ, DELTAT, QE, SMAX
     1         FORMAT (/,5X,'NEW INTERVALS:   DTADJ =',F6.2,
-     &                     '  DELTAT =',F6.2,'  QE =',1P,E8.1)
+     &                     '  DELTAT =',F6.2,'  QE =',1P,E8.1,
+     &                     '  SMAX =',0P,F7.3)
           END IF
       END IF
 *

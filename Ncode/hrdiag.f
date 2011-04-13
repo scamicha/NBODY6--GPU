@@ -16,8 +16,8 @@
 *       28th February 1997 to allow accretion induced supernovae.
 *
 *       Revised 5th April 1997 by J. R. Hurley
-*       to include Z=0.001 as well as Z=0.02, convective overshooting,
-*       MS hook and more elaborate CHeB
+*       to include from Z=0.0001 to Z=0.03, convective overshooting,
+*       MS hook and more elaborate CHeB.
 *
       implicit none
 *

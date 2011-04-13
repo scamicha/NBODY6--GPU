@@ -13,6 +13,7 @@
       REAL*8 M02,M2,MC2,AJ2,JSPIN2,R2,L2,MC22
       REAL*8 TSCLS1(20),TSCLS2(20),LUMS(10),GB(10),TM1,TM2,TN
       REAL*8 EBINDI,EBINDF,EORBI,EORBF,ECIRC
+      REAL*8 AA,BB,CC,EFAC
       REAL*8 ECC,SEP,SEPF,SEPL,MF,XX
       REAL*8 CONST,DELY,DERI,DELMF,MC3,FAGE1,FAGE2
       REAL*8 TB,OORB,OSPIN1,OSPIN2
@@ -73,28 +74,13 @@
 *
       EBINDI = M1*(M1-MC1)/(LAMB1*R1)
 *
-* If the secondary star is also giant-like add its envelopes's energy.
-*
-      IF(KW2.GE.2.AND.KW2.LE.9.AND.KW2.NE.7)THEN
-         IF(M2.GT.MC2)THEN
-            MENVD = MENV/(M2-MC2)
-            RZAMS = RZAMSF(M02)
-            LAMB2 = CELAMF(KW,M02,L2,R2,RZAMS,MENVD,LAMBDA)
-         ELSE
-            LAMB2 = 0.5D0
-         ENDIF
-         EBINDI = EBINDI + M2*(M2-MC2)/(LAMB2*R2)
-*
 * Calculate the initial orbital energy
 *
-         EORBI = MC1*MC2/(2.D0*SEP)
-      ELSE
-         EORBI = MC1*M2/(2.D0*SEP)
-      ENDIF
+      EORBI = MC1*M2/(2.D0*SEP)
 *
 * Allow for an eccentric orbit.
 *
-      ECIRC = EORBI/(1.D0 - ECC*ECC)
+*     ECIRC = EORBI/(1.D0 - ECC*ECC)
 *
       IF(ECCFLG.AND.ECC.GT.0.01D0)THEN
 *
@@ -116,48 +102,66 @@
          QP = SEP*(1.D0 - ECC)/(R1 + R2)
          YP = 0.5D0*(QP - 0.5D0)**3 - 0.375D0*(QP - 0.5D0) + 0.125D0
          YP = MAX(YP,0.05D0)
+         YP = MIN(YP,0.5D0)
          DE = YP*EBINDI
 * Remove all envelope mass if below 0.05 m_sun.
          IF (M1-MC1.LT.0.05) DE = EBINDI
-         DE = MIN(DE,(ECIRC-EORBI)*ALPHA1)
-*        DE = MIN(EBINDI/2.5D0,(ECIRC-EORBI)*ALPHA1)
-*
-         EORB1 = EORBI + DE/ALPHA1
-         IF((KW2.GE.2.AND.KW2.LE.6).OR.KW2.EQ.8.OR.KW2.EQ.9)THEN
-            A1 = R1/2.D0
+         EBINDF = EBINDI - DE
+         MF = 0.5D0*(MC1 + SQRT(MC1*MC1 + 4.D0*LAMB1*R1*EBINDF))
+         EORBI = MF*M2/(2.D0*SEP)
+         ECIRC = EORBI/(1.D0 - ECC*ECC)
+         EORBF = EORBI + DE/ALPHA1
+         IF(EORBF.LT.ECIRC)THEN
+            M1 = MF
+            ECC = SQRT(1.D0 - EORBF/ECIRC)
          ELSE
-            A1 = MC1*M2/(2.D0*EORB1)
-         ENDIF
-         IF(A1.LE.0.D0.OR.A1.GT.R1)THEN
-*
-* The star leaves the envelope after one orbit.
-*
-            EBINDF = EBINDI - DE
-*
-* Establish the remaining envelope around core 1.
-* Note: Spins are still to be dealt with.
-*
-            M1 = 0.5D0*(MC1 + SQRT(MC1*MC1 + 4.D0*LAMB1*R1*EBINDF))
-            IF((M1-MC1).LT.1.0D-07)THEN
-               M1 = MC1
-               CALL star(KW1,M01,M1,TM1,TN,TSCLS1,LUMS,GB,ZPARS)
-               CALL hrdiag(M01,AJ1,M1,TM1,TN,TSCLS1,LUMS,GB,ZPARS,
-     &                     R1,L1,KW1,MC1,RC1,MENV,RENV,K21)
-            ELSEIF(KW1.EQ.4)THEN
-               AJ1 = (AJ1 - TSCLS1(2))/TSCLS1(3)
-               CALL gntage(MC1,M1,KW1,ZPARS,M01,AJ1)
+*           EFAC = 1.d0 - 1.d0/(ECC*ECC)
+            EFAC = ECC*ECC/(1.d0 - ECC*ECC)
+            AA = 1.d0/(LAMB1*R1)
+*           BB = (2.d0*M1-MC1)/(LAMB1*R1) + ALPHA1*M2/(SEP*EFAC)
+            BB = (2.d0*M1-MC1)/(LAMB1*R1) + ALPHA1*EFAC*M2/(2.d0*SEP)
+*           CC = M1*MC1/(LAMB1*R1) + ALPHA1*M1*M2/(SEP*EFAC)
+            CC = ALPHA1*EFAC*M1*M2/(2.d0*SEP)
+            DM = (BB - SQRT(BB*BB - 4.d0*AA*CC))/(2.d0*AA)
+            IF(DM.LE.0.0.OR.DM.GT.(M1-MC1))THEN
+               WRITE(*,*)' WARNING: CE DM ',DM,M1,MC1
             ENDIF
-            EORBF = EORB1
-            SEPF = A1
-            IF(EORBF.GE.ECIRC.OR.(EORBF.LT.0.0.AND.A1.GT.0.0))THEN
-               ECC = 0.001D0
-            ELSE
-               ECC = SQRT(1.D0 - EORBF/ECIRC)
-               ECC = MAX(ECC,0.001D0)
-            ENDIF
-            GOTO 30 
+            M1 = MAX(M1-DM,MC1)
+            EBINDF = M1*(M1-MC1)/(LAMB1*R1)
+            DE = EBINDI - EBINDF
+            EORBF = EORBI + DE/ALPHA1
+            ECC = 0.001D0
          ENDIF
+         SEPF = M1*M2/(2.D0*EORBF)
+         IF((M1-MC1).LT.1.0D-07)THEN
+            M1 = MC1
+            CALL star(KW1,M01,M1,TM1,TN,TSCLS1,LUMS,GB,ZPARS)
+            CALL hrdiag(M01,AJ1,M1,TM1,TN,TSCLS1,LUMS,GB,ZPARS,
+     &                  R1,L1,KW1,MC1,RC1,MENV,RENV,K21)
+         ELSEIF(KW1.EQ.4)THEN
+            AJ1 = (AJ1 - TSCLS1(2))/TSCLS1(3)
+            CALL gntage(MC1,M1,KW1,ZPARS,M01,AJ1)
+         ENDIF
+         GOTO 30 
       ENDIF
+*
+* If the secondary star is also giant-like add its envelopes's energy.
+*
+      IF(KW2.GE.2.AND.KW2.LE.9.AND.KW2.NE.7)THEN
+         IF(M2.GT.MC2)THEN
+            MENVD = MENV/(M2-MC2)
+            RZAMS = RZAMSF(M02)
+            LAMB2 = CELAMF(KW,M02,L2,R2,RZAMS,MENVD,LAMBDA)
+         ELSE
+            LAMB2 = 0.5D0
+         ENDIF
+         EBINDI = EBINDI + M2*(M2-MC2)/(LAMB2*R2)
+*
+* Re-calculate the initial orbital energy
+*
+         EORBI = MC1*MC2/(2.D0*SEP)
+      ENDIF
+*
 *
 * Calculate the final orbital energy without coalescence.
 *
@@ -416,11 +420,11 @@
 *
 * Determine if any eccentricity remains in the orbit. 
 *
-         IF(ECCFLG.AND.EORBF.LT.ECIRC)THEN
-            ECC = SQRT(1.D0 - EORBF/ECIRC)
-         ELSE
-            ECC = 0.001D0
-         ENDIF
+*        IF(ECCFLG.AND.EORBF.LT.ECIRC)THEN
+*           ECC = SQRT(1.D0 - EORBF/ECIRC)
+*        ELSE
+*           ECC = 0.001D0
+*        ENDIF
 *
 * Set both cores in co-rotation with the orbit on exit of CE,
 *

@@ -16,15 +16,15 @@
           VI2 = VI2 + XDOT(K,I)**2
     1 CONTINUE
 *
-*       Include velocity kick in case of new neutron star, BH or massless SN.
-      IF (KW.EQ.13.OR.KW.EQ.14.OR.KW.EQ.15) THEN
+*       Include velocity kick in case of new WD, NS, BH or massless SN.
+      IF (KW.GE.10.AND.KW.LE.15) THEN
           IKICK = .TRUE.
 *       Distinguish between single star (first time only) and binary.
           IF (I.LE.N.AND.KW.NE.KSTAR(I)) THEN
-              CALL KICK(I,1)
+              CALL KICK(I,1,KW)
           ELSE IF (I.GT.N) THEN
               IPAIR = I - N
-              CALL KICK(IPAIR,0)
+              CALL KICK(IPAIR,0,KW)
           END IF
       ELSE
           IKICK = .FALSE.

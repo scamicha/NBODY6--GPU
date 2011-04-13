@@ -61,7 +61,7 @@
                   LIST(NNB1,I1) = J
               ELSE IF (J.GT.N) THEN
 *       Employ a more generous criterion for possible wide binary.
-                  RJ = BODY(J)/H(J-N)
+                  RJ = MIN(RMIN,-BODY(J)/H(J-N))
                   IF (RSEP2.LT.CMSEP2*RJ**2) THEN
                       NNB1 = NNB1 + 1
                       LIST(NNB1,I1) = J

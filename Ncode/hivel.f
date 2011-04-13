@@ -31,8 +31,9 @@
     2     CONTINUE
 *       Reduce membership and remove any distant member from the list.
           IF (LH.GT.0) THEN
-              WRITE (29,3)  LI, NAME(LI), SQRT(RL2), SQRT(VL2)
-    3         FORMAT (' HIVEL REMOVE    I NAM R V ',2I6,2F6.1)
+              WRITE (29,3)  TIME+TOFF, LI, NAME(LI), SQRT(RL2),
+     &                      SQRT(VL2)
+    3         FORMAT (' HIVEL REMOVE    T I NAM R V ',F12.4,2I6,2F6.1)
               CALL FLUSH(29)
               NHI = NHI - 1
               LISTV(1) = LISTV(1) - 1
@@ -84,7 +85,9 @@
               END IF
               GO TO 10
           END IF
-          IF (VI2.GT.VMAX2.AND.RI2.LT.4.0*RSCALE**2) THEN
+*      Include all VMAX2 members inside 2*RSCALE or with negative velocity.
+          RD = X(1,I)*XDOT(1,I) + X(2,I)*XDOT(2,I) + X(3,I)*XDOT(3,I)
+          IF (VI2.GT.VMAX2.AND.(RI2.LT.4.0*RSCALE**2.OR.RD.LT.0.)) THEN
               DO 8 L = 2,NHI
                   IF (I.EQ.LISTV(L)) GO TO 10
     8         CONTINUE
@@ -97,7 +100,7 @@
               WRITE (29,9)  TIME+TOFF, NHI-1, I, NAME(I), KSTAR(I),
      &                      SQRT(VI2), SQRT(RI2), STEP(I)
     9         FORMAT (' HIVEL ADD    T NHI I NM K* VI R DT ',
-     &                               F10.4,I4,2I6,I4,2F6.2,1P,E10.2)
+     &                               F12.4,I4,2I6,I4,2F6.2,1P,E10.2)
               CALL FLUSH(29)
           END IF
    10 CONTINUE
@@ -117,11 +120,13 @@
               LISTV(1) = LISTV(1) + 1
               NFAST = NFAST + 1
               LISTV(NHI) = I1
+              RI2 = (X(1,I1) - RDENS(1))**2 + (X(2,I1) - RDENS(2))**2 +
+     &                                        (X(3,I1) - RDENS(3))**2
               VI2 = X0DOT(1,I1)**2 + X0DOT(2,I1)**2 + X0DOT(3,I1)**2
               WRITE (29,22)  TTOT, NHI-1, NAME(I1), IPHASE, SQRT(VI2),
-     &                       STEP(I1)
-   22         FORMAT (' HIVEL ADD    T NHI NM IPH VI DT ',
-     &                               F10.4,I4,I6,I4,F6.1,1P,E10.2)
+     &                       SQRT(RI2), STEP(I1)
+   22         FORMAT (' HIVEL ADD    T NHI NM IPH VI R DT ',
+     &                               F12.4,I4,I6,I4,2F6.2,1P,E10.2)
               GO TO 30
           END IF
 *       Evaluate two-body energy.

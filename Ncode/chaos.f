@@ -57,7 +57,7 @@
           DO 5 K = 1,4
               EOSC(K,IC) = 0.0D0
     5     CONTINUE
-          IF (KZ(8).GT.3) THEN
+          IF (KZ(8).GT.3.AND.H(IPAIR).LT.0.0) THEN
               CALL BINEV(IPAIR)
           END IF
           IF (NCHAOS.GT.NTMAX) THEN
@@ -455,7 +455,7 @@
 *       Check optional binary diagnostics on transition from chaotic state.
    80 IF (KZ(8).GT.3.AND.KSTAR(I).NE.-1) THEN
 *       Skip output for unperturbed case (CALL KSTIDE from UNPERT).
-          IF (LIST(1,I1).GT.0) THEN
+          IF (LIST(1,I1).GT.0.AND.H(IPAIR).LT.0.0) THEN
               CALL BINEV(IPAIR)
           END IF
       END IF

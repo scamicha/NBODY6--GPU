@@ -44,14 +44,16 @@
 * reduced WR-like mass loss for small H-envelope mass
             if(mew.lt.1.d0)then
                dml = 1.0d-13*lum**(3.d0/2.d0)*(1.d0 - mew)
+               dml = dml*(z/0.02d0)**(1.d0/2.d0)
                dms = MAX(dml,dms)
             end if
 * LBV-like mass loss beyond the Humphreys-Davidson limit.
             x = 1.0d-5*r*sqrt(lum)
-            if(lum.gt.6.0d+05.and.x.gt.1.d0)then
-               dml = 0.1d0*(x-1.d0)**3*(lum/6.0d+05-1.d0)
-               dms = dms + dml
-            endif
+*           if(lum.gt.6.0d+05.and.x.gt.1.d0)then
+*              dml = 0.1d0*(x-1.d0)**3*(lum/6.0d+05-1.d0)
+*              dml = dml*(z/0.02d0)**(1.d0/2.d0)
+*              dms = dms + dml
+*           endif
          endif
       endif
 *

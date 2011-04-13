@@ -16,7 +16,7 @@
 *
 *       Determine smallest look-up time for single stars.
     1 ITER = ITER + 1
-      TM = 1.0D+10
+      TM = 1.1D+10
       DO 5 L = 1,NNB
           I = JLIST(L)
 *       Include safety check (just in case).

@@ -33,7 +33,7 @@
       REAL*8 MLWIND,RL
       EXTERNAL MLWIND,RL
       CHARACTER*8  WHICH1
-      LOGICAL ICORR
+      LOGICAL ICORR,IKICK
       SAVE IWARN
       DATA IWARN /0/
 *
@@ -285,6 +285,15 @@
           I1 = 2*(I - N) - 1
           I2 = I1 + 1
           TM = MIN(TEV(I1),TEV(I2))
+*         IF(KSTAR(I).GE.10)THEN
+*            IWARN = IWARN + 1
+*            IF (MOD(IWARN,100).EQ.0) THEN
+*               WRITE(6,910) I, NAME(I), KSTAR(I1), KSTAR(I2), KSTAR(I),
+*    &                       TTOT, TM - TEV(I)
+*910            FORMAT(' WARNING!    MDOT:    I NAM K* T D(TEV) ',
+*    &                               2I6,3I4,F9.2,1P,E10.2)
+*            END IF
+*         ENDIF
           IF (KSTAR(I).LT.10) THEN
               TEV(I) = 1.0d+10
           ELSE IF (KZ(34).GT.0) THEN
@@ -308,6 +317,9 @@
       KACC = 0
       JX(1) = I
       ECC2 = 0.D0
+      RJ = 0.D0
+      HJ = 0.D0
+      TJ2 = 0.D0
       IF(IGHOST.EQ.0.AND.IHDOT.EQ.0)THEN
          MASS(1) = BODY(I)*ZMBAR
          IF(I.LT.IFIRST)THEN
@@ -330,8 +342,6 @@
                JX(2) = IGHOST
                IF(K.EQ.2) JX(2) = 2*KSPAIR - 1
                MASS(2) = BM(J,IMERGE)*ZMBAR
-               RJ = 0.d0
-               TJ2 = 0.d0
                DO 25 II = 1,4
                   RJ = RJ + UM(II,IMERGE)*UM(II,IMERGE)
                   TJ2 = TJ2 + 2.d0*UM(II,IMERGE)*UMDOT(II,IMERGE)
@@ -363,8 +373,6 @@
             Q = 1.d0/Q
             ROL(2) = RL(Q)*SEP
             RXL2 = RADIUS(JX(2))/ROL(2)
-*           IF(RXL2.GT.RXL1)THEN
-*       Replace Roche radii test by a more careful condition (JRH 06/09).
             ISWAP = 0
             IF(KSTAR(JX(1)).LE.1.AND.
      &         (KSTAR(JX(2)).EQ.5.OR.KSTAR(JX(2)).EQ.6))THEN
@@ -590,7 +598,8 @@
             IF(DELET.GT.TINY.AND.ECC.GT.0.0011D0)THEN
                DTGR = MIN(DTGR,0.05D0*ECC/DELET)
             ENDIF
-            DTGR = MAX(DTGR,1.0D-04)
+            DTGR = MAX(DTGR,100.D0)
+*           DTGR = MAX(DTGR,1.0D-04)
             DTXMIN = MIN(DTXMIN,DTGR)
             DTGR = DTGR/1.0D+06
             DJORB = DJORB*DTXMIN
@@ -789,7 +798,7 @@
             SEMI = -0.5d0*BODY(N+KSPAIR)/H(KSPAIR)
             IF (NAME(N+KSPAIR).GT.0) THEN
 *       Set random phase for neutron star or BH formation (negative index).
-               IF (KSTAR(I).LT.10.AND.KW.GE.13) THEN
+               IF (KSTAR(I).LT.10.AND.KW.GE.10) THEN
                   JPAIR = -KSPAIR
                   RADIUS(I) = RNEW
                   KSTAR(I) = -KSTAR(I)
@@ -799,7 +808,10 @@
                IF ((DMR.GT.0.2.AND.R(KSPAIR).GT.RMIN).OR.
      &            (DM.GT.0.0.AND.H(KSPAIR) + DM/SEMI.GT.-ECLOSE.AND.
      &            KSTAR(N+KSPAIR).GE.0).OR.
-     &            (KW.NE.KSTAR(I).AND.KW.GE.13)) THEN
+*    &            (KW.NE.KSTAR(I).AND.KW.GE.13)) THEN
+     &            (KW.NE.KSTAR(I).AND.
+     &            (KW.GE.13.OR.(KW.GE.11.AND.KZ(25).GE.1).OR.
+     &            (KW.EQ.10.AND.KZ(25).GT.1)))) THEN
                   I = I + 2*(NPAIRS - KSPAIR)
                   JX(K) = I
                   IF(KACC.EQ.2)THEN
@@ -820,7 +832,10 @@
 *       Adopt KS treatment for single outer component or terminate merger.
                IF (I.EQ.2*KSPAIR.AND.NAME(I).LE.NZERO.AND.
      &             NAME(N+KSPAIR).GT.-2*NZERO.AND.DM.GT.0.0D0.AND.
-     &             H(KSPAIR) + DM/SEMI.LT.-ECLOSE.AND.KW.LT.13) THEN
+*    &             H(KSPAIR) + DM/SEMI.LT.-ECLOSE.AND.KW.LT.13) THEN
+     &             H(KSPAIR) + DM/SEMI.LT.-ECLOSE.AND.
+     &             (KW.LT.10.OR.(KW.LT.11.AND.KZ(25).LT.2).OR.
+     &             (KW.LT.13.AND.KZ(25).LT.1))) THEN
                   CALL HCORR(I,DM,RNEW)
                ELSEIF(DM.GT.0.D0)THEN
                   IPHASE = 7
@@ -864,6 +879,23 @@
                DO 35 J = 1,N
                   BODY1 = MAX(BODY1,BODY(J))
   35           CONTINUE
+            ENDIF
+*
+*       Update the mass loss counters for types > 2.
+            IF(KW.EQ.3)THEN
+               ZMRG = ZMRG + DMSUN
+            ELSEIF(KW.EQ.4)THEN
+               ZMHE = ZMHE + DMSUN
+            ELSEIF(KW.EQ.5.OR.KW.EQ.6)THEN
+               ZMRS = ZMRS + DMSUN
+            ELSEIF(KW.GE.7.AND.KW.LE.9)THEN
+               ZMNH = ZMNH + DMSUN
+            ELSEIF(KW.GE.10.AND.KW.LE.12)THEN
+               ZMWD = ZMWD + DMSUN
+            ELSEIF(KW.EQ.13.OR.KW.EQ.15)THEN
+               ZMSN = ZMSN + DMSUN
+            ELSEIF(KW.EQ.14)THEN
+               ZMBH = ZMBH + DMSUN
             ENDIF
 *
 *       Check optional diagnostics.
@@ -915,8 +947,13 @@
                END IF
    40       CONTINUE
 *
+*       Define logical variable to control optional WD kicks (avoids NaN).
+            IKICK = .FALSE.
+            IF (KZ(25).EQ.1.AND.(KW.EQ.10.OR.KW.EQ.11)) IKICK = .TRUE.
+            IF (KZ(25).EQ.2.AND.KW.EQ.12) IKICK = .TRUE.
+*
 *       Perform total force & energy corrections (delay dF if DMSUN > 0.1).
-            IF (DMSUN.LT.0.05.AND.KW.LE.12) THEN
+            IF ((DMSUN.LT.0.05.AND.KW.LT.10).OR..NOT.IKICK) THEN
                 CALL FICORR(I,DM)
             ELSE
                 CALL FCORR(I,DM,KW)
@@ -926,13 +963,13 @@
             IF (I.GT.N) IPOLY = -1
 *
 *       Initialize new polynomials of neighbours & #I for DMSUN > 0.1.
-            IF (ABS(DMSUN).GT.0.1.OR.KW.GE.13) THEN
+            IF (ABS(DMSUN).GT.0.1.OR.KW.GE.13.OR.IKICK) THEN
 *
-*       Obtain new F & FDOT and time-steps.
+*       Obtain new F & FDOT and time-steps (no gain skipping WDs).
                DO 50 L = 2,NNB2
                   J = ILIST(L)
                   IF (L.EQ.NNB2) J = I
-                  CALL DTCHCK(TIME,STEP(J),DTK(MAXBLK))
+*                 CALL DTCHCK(TIME,STEP(J),DTK(MAXBLK)) ! no effect (08/10).
                   DO 45 KK = 1,3
                      X0DOT(KK,J) = XDOT(KK,J)
    45             CONTINUE
@@ -990,31 +1027,24 @@
             END IF
          END IF
 *
-*       Update event counter & mass loss for types > 2.
-         if(kw.ne.kw0)then
-            if(kw.eq.3)then
-               nrg = nrg + 1
-               zmrg = zmrg + dmsun
-            elseif(kw.eq.4)then
-               nhe = nhe + 1
-               zmhe = zmhe + dmsun
-            elseif(kw.eq.5)then
-               nrs = nrs + 1
-               zmrs = zmrs + dmsun
-            elseif(kw.ge.7.and.kw.le.9.and.kw0.le.6)then
-               nnh = nnh + 1
-               zmnh = zmnh + dmsun
-            elseif(kw.ge.10.and.kw.le.12.and.kw0.le.9)then
-               nwd = nwd + 1
-               zmwd = zmwd + dmsun
-            elseif((kw.eq.13.or.kw.eq.15).and.kw0.le.12)then
-               nsn = nsn + 1
-               zmsn = zmsn + dmsun
-            elseif(kw.eq.14.and.kw0.le.13)then
-               nbh = nbh + 1
-               zmbh = zmbh + dmsun
-            endif
-         endif
+*       Update event counters for types > 2.
+         IF(KW.NE.KW0)THEN
+            IF(KW.EQ.3)THEN
+               NRG = NRG + 1
+            ELSEIF(KW.EQ.4)THEN
+               NHE = NHE + 1
+            ELSEIF(KW.EQ.5)THEN
+               NRS = NRS + 1
+            ELSEIF(KW.GE.7.AND.KW.LE.9.AND.KW0.LE.6)THEN
+               NNH = NNH + 1
+            ELSEIF(KW.GE.10.AND.KW.LE.12.AND.KW0.LE.9)THEN
+               NWD = NWD + 1
+            ELSEIF((KW.EQ.13.OR.KW.EQ.15).AND.KW0.LE.12)THEN
+               NSN = NSN + 1
+            ELSEIF(KW.EQ.14.AND.KW0.LE.13)THEN
+               NBH = NBH + 1
+            ENDIF
+         ENDIF
 *
 *       Include consistency warnings.
          IF (RNEW - RADIUS(I).GT.0.5*RADIUS(I)) THEN
@@ -1095,6 +1125,7 @@
 *       Restore current time to prevent small subsequent steps.
                TIME = TBLOCK
                IF ((KW.EQ.13.OR.KW.EQ.14).AND.H(NPAIRS).LT.0.0) THEN
+*              IF (KW.GE.10.AND.KW.LE.14.AND.H(NPAIRS).LT.0.0) THEN
                   J = NTOT
                   SEMI = -0.5d0*BODY(J)/H(NPAIRS)
                   RA = R(NPAIRS)/SEMI
@@ -1102,7 +1133,7 @@
                   TK = DAYS*SEMI*SQRT(SEMI/BODY(J))
                   WRITE(6,928) KW, SQRT(ECC2), RA, SEMI*SU, TK, STEP(J),
      &                         BODY(J)*ZMBAR, (XDOT(KK,J)*VSTAR,KK=1,3)
- 928              FORMAT(' NS BINARY    KW E R/A A P DT M V ',
+ 928              FORMAT(' WD/NS BINARY    KW E R/A A P DT M V ',
      &                                  I4,2F6.2,1P,3E10.2,0P,4F7.1)
                END IF
                IF(KW.GE.10.AND.H(NPAIRS).LT.0.0)THEN
@@ -1203,6 +1234,22 @@
                WRITE (6,944)  TTOT, NAME(2*IPAIR-1),KSTAR(2*IPAIR),
      &                        DTGR/TSTAR
   944          FORMAT (' GR CHECK   T NAM K* DTGR ',F8.2,I6,I4,1P,E9.1)
+*              IF (KSX.GE.13.AND.KZ(28).GT.0) THEN
+*              GE = (1.0 - ECC2)**3.5/(1.0 + 3.0*ECC2)
+*              ZMX = MAX(BODY(2*IPAIR-1),BODY(2*IPAIR))
+*              RATIO = MIN(BODY(2*IPAIR-1),BODY(2*IPAIR))/ZMX
+*       Replace physical time-scale by N-body units (cf. Book, Eq.12.31).
+*              TZ = GE*SEMI**4/(RATIO*(1.0 + RATIO)*ZMX**3)
+*              TZ = 5.0/64.0*CLIGHT**5*TZ
+*              IF (KZ(28).GT.2) THEN
+*                 WRITE (6,944)  TTOT, NAME(2*IPAIR-1),KSTAR(2*IPAIR),TZ
+*              END IF
+*       Limit the time-scale in case of shrinkage from non-GR orbit.
+*              TZ = MIN(TZ,100.0D0)
+*       Specify new look-up as 1% of current GR time-scale (ignore old TEV).
+*              TEV(2*IPAIR-1) = TIME + 0.01*TZ
+*              TEV(2*IPAIR) = TEV(2*IPAIR-1)
+*              TMDOT = MIN(TMDOT,TEV(2*IPAIR))
             END IF
 *
             IF(KSTAR(I).GT.0.AND.KZ(34).GT.0)THEN

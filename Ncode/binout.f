@@ -116,8 +116,8 @@
      &                      '  GX =',F6.3,'  RI =',F6.2,'  VR =',F4.1)
               CALL FLUSH(18)
           END IF
-*       Reset c.m. flag to standard type for non-zero eccentricity.
-          IF (KSTAR(I).EQ.10.AND.ECC2.GT.4.0D-06) KSTAR(I) = 0
+*       Reset c.m. Roche flag to standard type for non-zero eccentricity.
+          IF (KSTAR(I).GE.10.AND.ECC2.GT.4.0D-06) KSTAR(I) = 0
           IF (KSTAR(I).GE.10) K10 = K10 + 1
    50 CONTINUE
 *

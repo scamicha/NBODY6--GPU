@@ -20,6 +20,6 @@
       DATA  EP  /0.04D0,0.0016D0,0.64D-4,0.256D-5/
       DATA  RANGE  /50.0D0/
       DATA  ISLOW  /1,2,4,8,16,32,64,128,256,512/
-      DATA  NCOUNT  /70*0/
+      DATA  NCOUNT  /168*0/
 *
       END

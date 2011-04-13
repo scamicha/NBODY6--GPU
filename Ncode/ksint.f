@@ -264,6 +264,7 @@
               ECC2 = (1.0 - RI/SEMI)**2 + TDOT2(IPAIR)**2/(BODY(I)*SEMI)
               A0 = SEMI*(1.0 + SQRT(ECC2))/RI
               GA = GI*A0*A0*A0
+              IF (RI.GT.20*RMIN) IQ = .TRUE.
               IF (GA.GT.0.25.AND.RI.GT.SEMI) IQ = .TRUE.
               IF (GI.GT.0.1.AND.RI.GT.RMIN) IQ = .TRUE.
               IF (GI.GT.0.25) IQ = .TRUE.
@@ -286,14 +287,14 @@
       END IF
 *
 *       Check standard termination criterion (suppress on IQ = .true.).
-*     IF (RI.GT.R0(IPAIR)) THEN
       IF (RI.GT.R0(IPAIR).AND.RI.GT.2.0*RMIN.AND..NOT.IQ) THEN
 *
 *       See whether termination can be delayed for intermediate energies.
           IF (RI.GT.RMIN) THEN
-              A3 = RMIN*ABS(HI)*BODYIN
-              GIMAX = A3*A3*A3
-              IF (GI.LT.GIMAX) GO TO 60
+*       Adopt typical apocentre of 1.5*SEMI to estimate max perturbation.
+              A3 = 0.75*BODY(I)/(ABS(HI)*RI)
+              A3 = MAX(A3,1.0D0)
+              IF (GI.LT.A3*A3*A3*GMAX) GO TO 60
 *       Check updating of R0 for newly hardened binary orbit.
               IF (HI.LT.-ECLOSE) THEN
                   SEMI = -0.5*BODY(I)/HI
@@ -634,7 +635,13 @@
 *       See whether a massive BH subsystem can be selected.
       IF (KZ(24).EQ.0) GO TO 88
       IF (NAME(I).GT.0.AND.BODY(I).GT.0.001.AND.NCH.EQ.0.AND.
-     &    KZ(11).GT.0.AND.LIST(1,I1).LE.9.AND.RI.LT.2.0*RMIN) THEN
+     &    KZ(11).NE.0.AND.LIST(1,I1).LE.5.AND.SEMI.LT.0.5*RMIN) THEN
+*
+*       Check optional BH condition (prevents mass-loss complications).
+          IF (KZ(11).LE.-2) THEN
+              IF (KSTAR(I1).NE.14.OR.KSTAR(I2).NE.14) GO TO 88
+          END IF
+*
           RCR2 = RMIN2*BODY(I)/(16.0*BODYM)
           NNB1 = LIST(1,I1) + 1
           RX2 = 1000.0

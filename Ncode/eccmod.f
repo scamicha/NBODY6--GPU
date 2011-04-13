@@ -51,7 +51,7 @@
       SEMI = -0.5*ZMB/HM(IM)
       IF (SEMI.LE.0.0) THEN
           TMDIS(IM) = TIME + 1.0
-          WRITE(3,*)' ECCMOD ERROR ',SEMI,ECC,H(IPAIR),HM(IM),ZMB
+          WRITE(6,*)' ECCMOD ERROR ',SEMI,ECC,H(IPAIR),HM(IM),ZMB
           GO TO 50
       END IF
       ECC2 = (1.0 - RI/SEMI)**2 + TD2**2/(ZMB*SEMI)

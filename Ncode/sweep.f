@@ -32,8 +32,8 @@
               JMIN = J
           END IF
    10 CONTINUE
-*       Skip any close c.m. body (small STEP treated by IMPACT).
-      IF (JMIN.GT.N) GO TO 1
+*       Skip any close c.m./chain body (small STEP treated by IMPACT).
+      IF (JMIN.GT.N.OR.NAME(JMIN).EQ.0) GO TO 1
 *
 *       Form inverse semi-major axis.
       VIJ2 = 0.0
@@ -84,4 +84,3 @@
    30 RETURN
 *
       END
-

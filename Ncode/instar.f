@@ -55,10 +55,12 @@
       NSLP = 0
       NCONT = 0
       NCOAL = 0
+      NCE = 0
       INSTAB = 0
       NEINT = 0
       NEMOD = 0
       NHYP = 0
+      NHYPC = 0.0
       NGB = 0
       NMS = N
 *
@@ -78,8 +80,8 @@
       EPOCH1 = EPOCH0
       DO 10 I = 1,N
 *
-*       Obtain stellar parameters at current epoch.
-          IF(KZ(22).EQ.3)THEN
+*       Obtain stellar parameters at current epoch (option #12 12/2/11).
+          IF(KZ(12).EQ.2)THEN
              READ(12,*)M1,KW,M0,EPOCH1,OSPIN
           ELSE
              M1 = BODY(I)*ZMBAR

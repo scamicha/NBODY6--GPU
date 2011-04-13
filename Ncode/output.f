@@ -152,26 +152,26 @@
 *
       WRITE (6,50)
    50 FORMAT (/,'    <R>  RTIDE  RDENS   RC    NC   MC   RHOD   RHOM',
-     &                    '  CMAX   <Cn>  Ir/R   UN    NP   RCM    VCM',
-     &                   '      AZ      EB/E   EM/E   TCR     T6  NESC',
-     &                   '  VRMS')
+     &                 '  CMAX   <Cn>   Ir/R   UN    NP   RCM    VCM',
+     &                 '      AZ      EB/E   EM/E   TCR     T6  NESC',
+     &                 '  VRMS')
 *
       WRITE (6,55)  RSCALE, RTIDE, RD, RC, NC, ZMC, RHOD, RHOM, CMAX,
      &              CNNB, COST, IUNP, NP, CMR(4), CMRDOT(4), AZ, EB, EM,
      &              TCR, I6, NESC, VRMS
    55 FORMAT (' #1',F5.2,F6.1,F6.2,F7.3,I5,F7.3,F6.0,F7.0,F6.0,F6.1,
-     &                   F6.2,I5,I6,F8.3,F8.4,F9.4,2F7.3,F6.2,2I6,F6.1)
+     &                   F7.3,I5,I6,F8.3,F8.4,F9.4,2F7.3,F6.2,2I6,F6.1)
 *
       WRITE (6,60)
-   60 FORMAT (/,7X,'NNPRED    NBCORR  NBFULL  NBVOID  NRCONV',
-     &          '   NICONV  NBSMIN  NBDIS  NBDIS2  NCMDER  NBDER',
-     &           '  NFAST  NBFAST    NBLOCK     NBPRED     NBFLUX',
-     &           '  NIRECT  NRRECT  NURECT')
-      WRITE (6,65)  NNPRED, NBCORR, NBFULL, NBVOID, NRCONV, NICONV,
+   60 FORMAT (/,7X,'NNPRED    NBCORR  NBFULL  NBVOID    NICONV',
+     &           '  NBSMIN  NBDIS  NBDIS2  NCMDER  NBDER  NFAST',
+     &           '  NBFAST    NBLOCK    NBLCKR     NBPRED     NBFLUX',
+     &           '  NIRECT  NRRECT  NURECT  NBRECT')
+      WRITE (6,65)  NNPRED, NBCORR, NBFULL, NBVOID, NICONV,
      &              NBSMIN, NBDIS, NBDIS2, NCMDER, NBDER, NFAST,
-     &              NBFAST, NBLOCK, NBPRED, NBFLUX, NIRECT, NRRECT,
-     &              NURECT
-   65 FORMAT (' #2',I10,I10,I8,I9,I7,I9,I8,I7,2I8,2I7,I8,I10,2I11,3I8)
+     &              NBFAST, NBLOCK, NBLCKR, NBPRED, NBFLUX, NIRECT,
+     &              NRRECT, NURECT, NBRECT
+   65 FORMAT (' #2',I10,I10,I8,I9,I9,I8,I7,2I8,2I7,I8,2I10,2I11,4I8)
 *
       WRITE (6,70)
    70 FORMAT (/,5X,'NKSTRY  NKSREG  NKSHYP     NKSPER  NPRECT  NEWKS ',
@@ -196,10 +196,15 @@
       IF (KZ(14).EQ.3) THEN
           GZ = RG(1)*VG(2) - RG(2)*VG(1)
           SX = RBAR/1000.0
-          WRITE (6,80)  NTAIL, (RG(K)*SX,K=1,3), (VG(K)*VSTAR,K=1,3),
+          WRITE (6,78)  NTAIL, (RG(K)*SX,K=1,3), (VG(K)*VSTAR,K=1,3),
      &                  GZ, ETIDE
-   80     FORMAT (/,5X,'CLUSTER ORBIT    NT RG VG JZ ET ',
+   78     FORMAT (/,5X,'CLUSTER ORBIT    NT RG VG JZ ET ',
      &                                 I5,3F7.2,2X,3F7.1,1P,E16.8,E10.2)
+      END IF
+      IF (KZ(14).EQ.4) THEN
+          WRITE (6,80)  TTOT, N, RSCALE, ZMASS, MP, DETOT
+   80     FORMAT (/,5X,'GAS EXPULSION    T N <R> M MP DETOT ',
+     &                                   F7.1,I7,3F7.3,1P,E10.2)
       END IF
 *
 *       Reset minimum encounter distances & maximum apocentre separation.

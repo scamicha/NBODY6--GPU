@@ -14,7 +14,7 @@
       NBIN = NBIN0
       NBIN1 = NBIN + 1
       WRITE (6,1)  NBIN, SEMI0, ECC0, RATIO, RANGE, NSKIP, IDORM, ICIRC
-    1 FORMAT (/,12X,'BINARIES:   NBIN =',I4,'  A =',F9.6,'  E =',F6.2,
+    1 FORMAT (/,12X,'BINARIES:   NBIN =',I5,'  A =',F9.6,'  E =',F6.2,
      &              '  RATIO =',F4.1,'  RANGE =',F6.1,'  NSKIP =',I3,
      &              '  IDORM =',I2,'  ICIRC =',I2,/)
 *
@@ -108,8 +108,8 @@
               ECC = ECC0
           END IF
 *
-*       Generate semi-major axis (new option added 4/8/05).
-          IF (KZ(8).GE.4) THEN
+*       Generate semi-major axis (new option added 4/8/05, modified 27/7/10).
+          IF (KZ(8).EQ.4) THEN
 *       Adopt Pavel Kroupa (1995, Eq.11b) distribution for semi-major axis.
              exp1 = EXP(2.D0*RAN2(IDUM1)/2.5D0) - 1.D0
              exp1 = SQRT(exp1*45.D0) + 1.D0

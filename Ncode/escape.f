@@ -184,7 +184,7 @@
           END IF
           VKM = SQRT(VI2)*VSTAR
           WRITE (11,45)  TESC, BESC, EESC, VKM, KSTARI, NAME(I)
-   45     FORMAT (F8.1,3F6.1,I4,I6)
+   45     FORMAT (F8.1,3F6.1,I4,I7)
           CALL FLUSH(11)
       END IF
 *
@@ -392,12 +392,6 @@
           NBESC = NBESC + 1
       ELSE
           NMESC = NMESC + 1
-      END IF
-*
-*       Include escaping chain c.m. (retained ghosts not harmful).
-      IF (NAMEI.EQ.0.OR.NAMEI.EQ.99999) THEN
-          WRITE (6,204)  NCH, EI
-  204     FORMAT (' CM CHAIN ESCAPE    NCH EI ',I4,1P,E10.2)
       END IF
 *
 *       Reduce particle number, pair index & single particle index. 

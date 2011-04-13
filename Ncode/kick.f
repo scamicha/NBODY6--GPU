@@ -1,14 +1,14 @@
-      SUBROUTINE KICK(I,ICASE)
+      SUBROUTINE KICK(I,ICASE,KW)
 *
 *
-*       Velocity kick for neutron stars or black holes.
-*       -----------------------------------------------
+*       Velocity kick for WD, neutron stars or black holes.
+*       ---------------------------------------------------
 *
       INCLUDE 'common6.h'
       REAL*8  RAN2,VK(4)
       SAVE  IPAIR, KC, VDIS, RI
       DATA  IPAIR,KC /0,0/
-      PARAMETER (VFAC=1.0D0)
+      PARAMETER (VFAC=2.0D0)
 *
 *
 *       Save orbital parameters in case of KS binary (called from KSAPO).
@@ -26,6 +26,7 @@
 *
 *       Determine mass loss and actual disruption velocity.
           DM = BODY(IN) - 1.4/ZMBAR
+          IF (KW.LT.13) DM = 0.0
           VD2 = 2.0*(BODY(N+IPAIR) - DM)/R(IPAIR)
           VDIS = SQRT(VD2)*VSTAR
 *       Set cluster escape velocity (add twice central potential).
@@ -45,6 +46,12 @@
     1     FORMAT (' BINARY KICK:    NAM K* M1 M2 VESC VDIS R/A EB R ',
      &                              2I6,2I4,4F7.1,F6.2,F9.4,1P,E10.2)
           NBKICK = NBKICK + 1
+*       Remove any circularized KS binary from the CHAOS/SYNCH table.
+          IF (KSTAR(N+IPAIR).GE.10.AND.NCHAOS.GT.0) THEN
+              II = -(N + IPAIR)
+              CALL SPIRAL(II)
+              KSTAR(N+IPAIR) = 0
+          END IF
           GO TO 30
       END IF
 *
@@ -65,6 +72,17 @@
 *       Include velocity dispersion in terms of VSTAR (Parameter statement!).
       IF (VFAC.GT.0.0D0) THEN
           DISP = VFAC*VSTAR
+      END IF
+*
+*       Allow for optional type-dependent WD kick.
+      IF (KW.LT.13) THEN
+          IF (KZ(25).EQ.1.AND.(KW.EQ.10.OR.KW.EQ.11)) THEN
+              DISP = 5.0
+          ELSE IF (KZ(25).GT.1.AND.KW.EQ.12) THEN
+              DISP = 5.0
+          ELSE
+              DISP = 0.0
+          END IF
       END IF
 *
 *       Use Henon's method for pairwise components (Douglas Heggie 22/5/97).
@@ -90,6 +108,8 @@
           IF (BODY(I).EQ.0.0D0) VKICK = 10.0*VSTAR
       END IF
       VKICK = VKICK/VSTAR
+*       Skip WD case with KZ(25) = 0.
+      IF (VKICK.EQ.0.0D0) GO TO 30
 *
 *       Randomize the velocity components.
 *     A(4) = 0.0
@@ -131,7 +151,8 @@
           IPAIR = 0
       END IF
 *
-      IF (NKICK.LT.50.OR.NAME(I).LE.2*NBIN0) THEN
+      IF (NKICK.LT.50.OR.NAME(I).LE.2*NBIN0.OR.
+     &    (KW.GE.13.AND.TTOT*TSTAR.GT.100.0)) THEN
           ZM = BODY(I)*ZMBAR
           WRITE (6,20)  I, NAME(I), KSTAR(I), KC, BODY0(I)*ZMBAR, ZM,
      &                  SQRT(VI2)*VSTAR, VKICK*VSTAR, SQRT(VF2)*VSTAR
@@ -140,10 +161,10 @@
           KC = 0
       END IF
 *
-*       Highlight velocities below 4 times rms velocity.
-      IF (VKICK.LT.4.0*SQRT(0.5)) THEN
-          WRITE (6,25)  I, NAME(I), VKICK*VSTAR, SQRT(VF2)*VSTAR
-   25     FORMAT (' LOW KICK:    I NAM VK VF ',2I7,2F7.2)
+*       Highlight BH/NS velocities below 4 times rms velocity.
+      IF (VKICK.LT.4.0*SQRT(0.5).AND.KW.GE.13) THEN
+          WRITE (6,25)  I, NAME(I), KW, VKICK*VSTAR, SQRT(VF2)*VSTAR
+   25     FORMAT (' LOW KICK:    I NAM K* VK VF ',2I7,I4,2F7.2)
       END IF
 *
 *       Include optional list of high-velocity particles (double counting!).

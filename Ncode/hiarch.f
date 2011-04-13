@@ -210,7 +210,7 @@
           RBIG = MAX(RADIUS(I1),RADIUS(I2))
           PMIN = SEMI*(1.0 - ECC)
           PMIN2 = SEMI*(1.0 - EMAX)
-          IF (KZ(19).EQ.3) THEN
+          IF (KZ(19).GE.3) THEN
               R1 = PMIN/RBIG
               R2 = PMIN2/RBIG
           ELSE

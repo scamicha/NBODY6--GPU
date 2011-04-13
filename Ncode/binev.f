@@ -10,8 +10,8 @@
      &                NAMEM(MMAX),NAMEG(MMAX),KSTARM(MMAX),IFLAGM(MMAX)
       REAL*8  M1,M2
       LOGICAL  FIRST
-      SAVE  FIRST
-      DATA  FIRST  /.TRUE./
+      SAVE  FIRST,IPREV,ISKIP
+      DATA  FIRST,IPREV,ISKIP  /.TRUE.,0,0/
 *
 *
 *       Open unit #17 the first time.
@@ -32,6 +32,12 @@
       R1 = RADIUS(I1)*SU
       R2 = RADIUS(I2)*SU
 *
+*       Skip identical or alternating sequences (i.e. KSTAR(I) = -1 & 0).
+      ISUM = KSTAR(I1) + KSTAR(I2) + KSTAR(I)
+      IF (ISUM.EQ.IPREV.OR.ISUM.EQ.ISKIP) GO TO 20
+      ISKIP = IPREV
+      IPREV = ISUM
+*
 *       Form basic two-body elements (distinguish mergers & ghosts).
       IF (NAME(I).GT.0.AND.BODY(I).GT.0.0D0) THEN
           SEMI = -0.5*BODY(I)/H(IPAIR)
@@ -49,7 +55,9 @@
       ECC = SQRT(ECC2)
       P = DAYS*SEMI*SQRT(ABS(SEMI)/BODYC)
       P = MIN(P,99999.9D0)
+      P = MAX(P,-1.0D0)
       A0 = MIN(SEMI*SU,9999.9D0)
+      A0 = MAX(A0,-1.0D0)
       RI2 = (X(1,I) - RDENS(1))**2 + (X(2,I) - RDENS(2))**2 +
      &                               (X(3,I) - RDENS(3))**2
       RI = MIN(SQRT(RI2),99.9D0)
@@ -62,6 +70,6 @@
    10 FORMAT (F8.1,2I6,3I4,2F5.1,F7.1,F6.1,F5.1,F7.3,F8.1,F9.1,I3)
       CALL FLUSH(17)
 *
-      RETURN
+   20 RETURN
 *
       END

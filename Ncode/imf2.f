@@ -11,6 +11,8 @@
       REAL*8  LM,UM,BCM
       EXTERNAL IMFBD
       COMMON/WORK1/  BCM(NMAX)
+      REAL*8 COPYX(3,NMAX),COPYV(3,NMAX)
+      PARAMETER (MAXM=0)
 *
 *=========================  if KZ(20)=2:
 * KTG3 MF with alpha1=1.3 :
@@ -19,18 +21,23 @@
 c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
 *=========================
 *
+*
+*       Change PARAMETER to MAXM = 1 for taking BODY10 as massive star.
+      BDYMAX = 0.0D0
+*
 *       Generate initial mass function (N-NBIN0 singles & 2*NBIN0 binaries).
       KDUM = IDUM1
       ZMASS = 0.0D0
       DO 10 I = 1,N+NBIN0
     5     XX = RAN2(KDUM)
 *
-*       Choose between Kroupa et al (M.N. 262, 545) & Eggleton (book).
+*       Choose between Kroupa et al. (M.N. 262, 545) & Eggleton (Book).
           IF (KZ(20).EQ.2.OR.KZ(20).EQ.4) THEN
               ZM = 0.08 + (G1*XX**G2 + G3*XX**G4)/(1.0 - XX)**0.58
           ELSE IF (KZ(20).EQ.3.OR.KZ(20).EQ.5) THEN
               ZM = 0.3*XX/(1.0 - XX)**0.55
-          ELSE IF (KZ(20).EQ.6) THEN
+*       Allow discrimination between correlated & uncorrelated binary masses.
+          ELSE IF (KZ(20).EQ.6.OR.KZ(20).EQ.7) THEN
               LM = BODYN
               UM = BODY10
               ZM = IMFBD(XX,LM,UM)
@@ -45,7 +52,20 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
           ELSE
               GO TO 5
           END IF
+*
+*       Find index of most massive star (C.O. 20/12/10).
+          IF (BODY(I).GT.BDYMAX) THEN
+             BDYMAX = BODY(I)
+             IMAXX = I
+          END IF
    10 CONTINUE
+*
+*       Set maximum mass from upper limit BODY10 and correct total mass.
+      IF (MAXM.GT.0) THEN
+          ZMASS       = ZMASS - BODY(IMAXX)
+          BODY(IMAXX) = BODY10
+          ZMASS       = ZMASS + BODY(IMAXX)
+      END IF
 *
 *       See whether to skip mass function for binaries.
       IF (NBIN0.EQ.0) GO TO 50
@@ -68,7 +88,14 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
           JB = JLIST(NBIN0-I+1)
           BODY0(2*I-1) = MAX(BODY(2*JB-1),BODY(2*JB))/ZMASS
           BODY0(2*I) = MIN(BODY(2*JB-1),BODY(2*JB))/ZMASS
-          IF (KZ(20).GT.3.AND.KZ(20).LE.5) THEN
+*( C.O. 15.11.07)
+*       Adopt correlation f(m1/m2) also for Brown Dwarf IMF (kz(20) = 7).
+*       Set up realistic primordial binary population according to
+*       a) Kouwenhoven et al. 2007, A&A, 474, 77
+*       b) Kobulnicky & Fryer 2007, ApJ, 670, 747
+          IF ((kz(20).eq.4).OR.
+     &        (kz(20).eq.5).OR.
+     &        (kz(20).eq.7)) THEN
 *       Adopt correlation (m1/m2)' = (m1/m2)**0.4 & constant sum (Eggleton).
               ZMB = BODY0(2*I-1) + BODY0(2*I)
               RATIO = BODY0(2*I-1)/BODY0(2*I)
@@ -87,7 +114,7 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
    40 CONTINUE
 *
       WRITE (6,45)  NBIN0, BODY(1), BODY(NBIN0), ZMB/FLOAT(NBIN0)
-   45 FORMAT (//,12X,'BINARY STAR IMF:    NB =',I5,
+   45 FORMAT (//,12X,'BINARY STAR IMF:    NB =',I6,
      &               '  RANGE =',1P,2E10.2,'  <MB> =',E9.2)
 *
 *       Move the single stars up to form compact array of N members.
@@ -98,6 +125,12 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
           NS = NS + 1
           BCM(NS) = BODY(NBIN0+L)
           KCM(NS) = KSTAR(2*NBIN0+L)
+*TEST> C.O. 20.12.2010
+*       Create local copies of phase space vector.
+          DO 55 K = 1,3
+              COPYX(K,NS) = X(K,2*nbin0 + l)
+              COPYV(K,NS) = XDOT(K,2*nbin0 + l)
+   55     CONTINUE
 *         JLIST(NS) = NBIN0 + L
           JLIST(NS) = NS
    60 CONTINUE
@@ -105,20 +138,30 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
 *       Sort masses of single stars in increasing order.
       CALL SORT1(NS,BCM,JLIST)
 *
-*       Copy the masses of single stars to COMMON in decreasing order.
+*       Copy masses of single stars to COMMON in decreasing order.
       ZMS = 0.0
       DO 70 I = 1,NS
           BODY(N-I+1) = BCM(I)
           ZMS = ZMS + BCM(I)
           KSTAR(N-I+1+NBIN0) = KCM(JLIST(I))
+*TEST> C.O. 20.12.2010
+*       Recover the corresponding coordinates and velocities.
+          J = JLIST(I)
+          DO 65 K = 1,3
+              X(K,N-I+1+NBIN0) = COPYX(K,J)
+              XDOT(K,N-I+1+NBIN0) = COPYV(K,J)
+   65     CONTINUE
    70 CONTINUE
 *
       WRITE (6,80)  N-NBIN0, BODY(NBIN0+1), BODY(N), ZMS/FLOAT(N-NBIN0)
-   80 FORMAT (/,12X,'SINGLE STAR IMF:    NS =',I5,'  RANGE =',1P,2E10.2,
+   80 FORMAT (/,12X,'SINGLE STAR IMF:    NS =',I6,'  RANGE =',1P,2E10.2,
      &                                            '  <MS> =',E9.2)
 *
 *       Replace input value by actual mean mass in solar units.
    90 ZMBAR = ZMASS/FLOAT(N)
+*
+*       Save random number sequence in IDUM1 for future use.
+      IDUM1 = KDUM
 *
       RETURN
 *
