@@ -365,6 +365,11 @@
           END IF
       END IF
 *
+*       Check updating of global index for chain c.m.
+      IF (NCH.GT.0) THEN
+          CALL CHFIND
+      END IF
+*
       RETURN
 *
       END

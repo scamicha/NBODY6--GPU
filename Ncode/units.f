@@ -47,7 +47,7 @@
      &              '  V* =',F6.3,'  T* =',F6.3,'  <M> =',F5.2,
      &              '  SU =',1P,E8.1)
 *
-*       Define relevant parameter for the GR case (RZ = 6*<m>/c2).
+*       Define relevant parameter for the GR case (RZ = 6*<m>/c^2).
       IF (KZ(27).EQ.3.OR.KZ(28).GT.0) THEN
           CLIGHT = 3.0D+05/VSTAR
           RZ = 6.0*ZMASS/(FLOAT(N)*CLIGHT**2)
@@ -59,5 +59,3 @@
       RETURN
 *
       END
-
-

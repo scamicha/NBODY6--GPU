@@ -11,7 +11,7 @@
 *
 *       Truncate any large value to first block-step entry.
       K = 1
-      IF (DT.GE.1.0) GO TO 10
+      IF (DT.GE.SMAX) GO TO 10
 *
 *       Compare predicted step with discrete values decreasing by 1/32.
       DT1 = DTK(1)

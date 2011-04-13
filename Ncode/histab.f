@@ -69,11 +69,11 @@
       END IF
 *
 *       Choose the most active triple in case of two binaries.
+      JJ = J
       IF (J.GT.N) THEN
           SEMI2 = -0.5D0*BODY(J)/H(J-N)
 *       Adopt 10% fudge factor with linear dependence on smallest ratio.
           YFAC = 1.0 + 0.1*MIN(SEMI2/SEMI,SEMI/SEMI2)
-          JJ=J
           IF (SEMI2.GT.SEMI) THEN
               ECC2 = (1.0 - R(J-N)/SEMI2)**2 +
      &                             TDOT2(J-N)**2/(BODY(J)*SEMI2)
@@ -89,7 +89,6 @@
           END IF
       ELSE
           YFAC = 1.0
-          JJ = J
       END IF
 *
 *       Resolve weakly perturbed binary (prevent X(K,I1) = X(K,I2)).

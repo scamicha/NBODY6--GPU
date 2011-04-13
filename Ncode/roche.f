@@ -454,6 +454,14 @@
                JKICK = J2
                KWK = KW2
             ENDIF
+            IF(KSTAR(J1).LT.10.AND.KW1.GE.10.AND.KW1.LE.12)THEN
+               JKICK = J1
+               KWK = KW1
+            ENDIF
+            IF(KSTAR(J2).LT.10.AND.KW2.GE.10.AND.KW2.LE.12)THEN
+               JKICK = J2
+               KWK = KW2
+            ENDIF
             KSTAR(J1) = KW1
             KSTAR(J2) = KW2
             SEMI = SEP/SU
@@ -1117,7 +1125,8 @@
 *       Quit Roche on any transition that involves a supernova as the mass
 *       will change suddenly.
 *
-         IF(KSTAR(J).LT.13.AND.KW.GE.13)THEN
+         IF((KSTAR(J).LT.13.AND.KW.GE.13).OR.
+     &      (KSTAR(J).LT.10.AND.KW.GE.10.AND.KW.LE.12))THEN
             IQ = J
             BODY0(J) = MASS0(K)/ZMBAR
             BODY(J) = MASS(K)/ZMBAR
@@ -1170,7 +1179,7 @@
          WRITE(85,95)NAME(J1),NAME(J2),KSTAR(J1),KSTAR(J2),KSTAR(I),
      &               TPHYS,AJ(1),AJ(2),MASS0(1),MASS0(2),
      &               MASS(1),MASS(2),ZMET,ECC,TK,JSPIN(1),JSPIN(2),CH5
-         CALL KICK2(JKICK,KWK)
+         CALL KICK2(JKICK)
          GOTO 160
       ELSE IF(IQ.GT.0)THEN
          TEV(I) = 1.0D+10

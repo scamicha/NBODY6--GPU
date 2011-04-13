@@ -92,6 +92,7 @@
 *       VXROT   XY-velocity scaling factor (> 0 for solid-body rotation).
 *       VZROT   Z-velocity scaling factor (not used if VXROT = 0).
 *       RTIDE   Unscaled tidal radius (#14 >= 2; otherwise copied to RSPH2).
+*       SMAX    Maximum time-step (factor of 2 commensurate with 1.0).
 ***
 * XTRNL0: if (kz(14).eq.2)
 *
@@ -106,7 +107,7 @@
 *       B       Vertical softening length (kpc).
 *       VCIRC   Galactic circular velocity (km/sec) at RCIRC (=0: no halo).
 *       RCIRC   Central distance for VCIRC with logarithmic potential (kpc).
-*       RG      Initial position; GMG+DISK=0, VG(3)=0: A(1+E)=RG(1), E=RG(2).
+*       RG      Initial X,Y,Z; DISK+VCIRC=0, VG(3)=0: A(1+E)=RG(1), E=RG(2).
 *       VG      Initial cluster velocity vector (km/sec).
 *
 *         if (kz(14).eq.3.or.kz(14).eq.4)
@@ -145,6 +146,8 @@
 *       IEV     # idealized evolved stars.
 *       RMS     Scale factor for main-sequence radii (>0: fudge factor).
 *       REV     Scale factor for evolved radii (initial size RSTAR).
+*
+* INSTAR: if (kz(12).eq.2)  Input of stellar parameters on fort.12.
 ***
 * CLOUD0: if (kz(13).gt.0)
 *
@@ -175,37 +178,45 @@
 *               >=6: Zhao BH cusp model, extra input if #24 < 0: ZMH, RCUT.
 *       6  Significant & regularized binaries at main output (=1, 2, 3 & 4).
 *       7  Lagrangian radii (>0: RSCALE; =2, 3, 4: output units 6, 7, 12);
+*                >=2: half-mass radii of 50% mass, also 1% heavies, unit 6;
 *                >=2: Lagrangian radii for two mass groups on unit 31 & 32;
-*                >=2: harmonic radii for three mass groups on unit 6;
+*                >=2: geometric radii for three mass groups on unit 6;
 *                 =5: density, rms velocity & mean mass on unit 26, 27 & 36;
 *                 =6: pairwise values of mean mass and radii on unit 28.
 *       8  Primordial binaries (=1 & >=3; >0: BINOUT; >2: BINDAT; >3: HIDAT;
-*                               =4: Kroupa 1995 period distribution).
+*                               =4: Kroupa 1995 period distribution;
+*                               >4: standard setup using RANGE & SEMI0).
 *       9  Individual bodies on unit 6 at main output (MIN(5**KZ9,NTOT)).
 *      10  Diagnostic KS output (>0: begin KS; >1: end; >=3: each step).
 *      11  (reserved for post-Newtonian code NBODY7).
-*      12  HR diagnostics of evolving stars (interval DTPLOT).
+*      12  HR diagnostics of evolving stars (> 0; interval DTPLOT);
+*               =2: input of stellar parameters on fort.12 (routine INSTAR).
 *      13  Interstellar clouds (=1: constant velocity; >1: Gaussian).
 *      14  External force (=1: standard tidal field; =2: point-mass galaxy;
 *               =3: point-mass + disk + halo + Plummer; =4: Plummer model).
-*      15  Triple, quad, chain (#30 > 0) or merger search (>1: full output).
+*      15  Triple, quad, chain (#30 > 0) or merger search (>1: more output).
 *      16  Updating of regularization parameters (>0: RMIN, DTMIN & ECLOSE);
 *                  >1: RMIN expression based on core radius (experimental);
 *                  >2: modify RMIN for GPERT > 0.05 or < 0.002 in chain.
 *      17  Modification of ETAI, ETAR (>=1) and ETAU (>1) by tolerance QE.
 *      18  Hierarchical systems (=1: diagnostics; =2: primordial; =3: both).
-*      19  Mass loss (=1: old supernova scheme; =3: Eggleton, Tout & Hurley).
+*      19  Mass loss (=1: old supernova scheme; =3: Eggleton, Tout & Hurley;
+*                                               >3: extra diagnostics).
 *      20  Initial mass function (=0: Salpeter type using ALPHAS; =1: Scalo;
-*              =2, 4, 6: Kroupa; =3, 5: Eggleton; > 1: primordial binaries).
+*              =2, 4, 6: Kroupa; =3, 5: Eggleton; > 1: primordial binaries;
+*              =7: binary correlated m1/m2 also for brown dwarf IMF;
+*              Note: Use PARAMETER (MAXM=1) for setting BODY(1) = BODY10).
 *      21  Extra output (>0: MODEL #, TCOMP, DMIN, AMIN; >1: NESC by JACOBI).
-*      22  Initial m, r, v on #10 (=1: output; >=2: input; >2: no scaling);
-*              =3: input of stellar parameters on unit 12 (routine INSTAR);
-*              =4: input from mcluster.c code on fort.10 (also NBIN0 > 0);
-*              =-1: astrophysical input (M_sun, km/s, pc) on unit #10.
+*      22  Initial m, r, v on #10 (=1: output; >=2: input; >2: no scaling;
+*              =2: m, r, v on #10 in any units; scaled to standard units;
+*              =3: no scaling of input on fort.10;
+*              =4: input from mcluster.c (no scaling; binaries if NBIN0 >0);
+*              =-1: astrophysical input (M_sun, km/s, pc) on unit #10).
 *      23  Escaper removal (>1: diagnostics in file ESC with V_inf in km/s);
 *                           >=3: initialization & integration of tidal tail.
 *      24  Initial conditions for subsystem (M,X,V routine SCALE; KZ(24)= #);
 *                           <0: ZMH & RCUT (N-body units) Zhao model (#5>=6).
+*      25  Velocity kicks for white dwarfs (=1: type 11 & 12; >1: all WDs).
 *      25  Partial reflection of KS binary orbit (GAMMA < GMIN; suppressed).
 *      26  Slow-down of two-body motion (>=1: KS; >=2: chain; =3: rectify).
 *      27  Tidal effects (=1: sequential; =2: chaos; =3: GR energy loss);
@@ -216,22 +227,25 @@
 *      30  Multiple regularization (=1: all; >1: BEGIN/END; >2: each step);
 *                                =-1: CHAIN only; =-2: TRIPLE & QUAD only. 
 *      31  Centre of mass correction after energy check.
-*      32  Increase of output intervals (based on single particle energy).
+*      32  Increase output intervals & SMAX based on single particle energy.
 *      33  Histograms at main output (>=1: STEP; =2: STEPR, NBHIST & BINARY).
 *      34  Roche-lobe overflow (=1: Roche & Synch; =2: Roche & BSE synch).
 *      35  Time offset (global time from TTOT = TIME + TOFF; offset = 100).
 *      36  Step reduction for hierarchical systems (suppressed).
 *      37  Neighbour additions in CHECKL (>0: high-velocity; >1: all types).
-*      38  Force polynomial corrections (=0: I > N; >0: single particles).
+*      38  Force polynomial corrections (=0: standard, no corrections;
+*                                =1: all gains & losses included;
+*                                =2: small FREG change skipped;
+*                                =3: fast neighbour loss only).
 *      39  No unique density centre (skips velocity modification of RS(I)).
 *      40  Neighbour number control (=1: increase if <NNB>  <  NNBMAX/2);
 *                     >=2: fine-tuning at NNBMAX/5; =3: reduction of NNBMAX.
 *      41-50  Currently free.
 *       ---------------------------------------------------------------------
 *
-* NBODY6: Restart
+* NBODY6: Restart from fort.1
 *
-*       KSTART TCOMP (KSTART = 2, 3, 4)
+*       KSTART TCOMP (KSTART = 2, 3, 4, 5)
 *
 *       DTADJ DELTAT TADJ TNEXT TCRIT QE J KZ(J) (if > 0 & KSTART = 3 or 5).
 *       
@@ -258,9 +272,10 @@
 *       NBDIS2  Second component of old KS pair added as neighbour (#18 > 1).
 *       NCMDER  C.m. values for force derivatives of KS component.
 *       NBDER   Large F3DOT corrections not included in D3 & D3R.
-*       NFAST   Fast particles included in LISTV (option 18).
-*       NBFAST  Fast particles included in neighbour list (option 18).
+*       NFAST   Fast particles included in LISTV (option 37).
+*       NBFAST  Fast particles included in neighbour list (option 37).
 *       NBLOCK  Number of blocks (block-step version).
+*       NBLCKR  Number of regular force blocks.
 *       NMDOT   Mass loss events (option 19).
 *       NBSTAT  Diagnostic data on binary interactions (option 4).
 *       NKSTRY  Two-body regularization attempts.
@@ -327,5 +342,3 @@
       RETURN
 *
       END
-
-

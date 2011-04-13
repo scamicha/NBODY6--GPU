@@ -57,6 +57,22 @@
       TSCALE = TSCALE*SQRT(RBAR**3/(ZMASS*ZMBAR))
       VSTAR = VSTAR*SQRT(ZMASS*ZMBAR/RBAR)
 *
+*       Perform an energy scaling iteration to include ETIDE (once is OK).
+      E0 = -0.25
+      CALL XTRNLV(1,N)
+*       Form total energy based on current values and ETIDE (cf. SCALE).
+      ETOT = ZKIN - POT + ETIDE
+      SX = E0/ETOT
+      IF (ETOT.GE.0.0) SX = 1.0
+*
+*       Scale coordinates & velocities to yield ETOT = -0.25.
+      DO 15 I = 1,N
+          DO 12 K = 1,3
+              X(K,I) = X(K,I)/SX
+              XDOT(K,I) = XDOT(K,I)*SQRT(SX)
+   12     CONTINUE
+   15 CONTINUE
+*
 *       Consider alternatives: circular point-mass orbit or 3D galaxy model.
    20 ZMTOT = ZMASS*ZMBAR
       IF (KZ(14).EQ.2) THEN
@@ -95,6 +111,22 @@
 *
           WRITE (6,35)  GMG, RG0, OMEGA, RTIDE, RBAR
 *
+*       Perform an energy scaling iteration to include ETIDE (once is OK).
+      E0 = -0.25
+      CALL XTRNLV(1,N)
+*       Form total energy based on current values and ETIDE (cf. SCALE).
+      ETOT = ZKIN - POT + ETIDE
+      SX = E0/ETOT
+      IF (ETOT.GE.0.0) SX = 1.0
+*
+*       Scale coordinates & velocities to yield ETOT = -0.25.
+      DO 24 I = 1,N
+          DO 22 K = 1,3
+              X(K,I) = X(K,I)/SX
+              XDOT(K,I) = XDOT(K,I)*SQRT(SX)
+   22     CONTINUE
+   24 CONTINUE
+*
 *       Treat the general case of 3D orbit for point-mass, disk and/or halo.
       ELSE IF (KZ(14).EQ.3) THEN
 *
@@ -128,8 +160,8 @@
           OMEGA = (RG(1)*VG(2) - RG(2)*VG(1))/R02
           TIDAL(4) = 2.0*OMEGA
           GMG = GMG/ZMTOT
-*       Adopt a tidal radius of 50 pc unless specified by routine SCALE.
-          IF (RTIDE.EQ.0.0D0) RTIDE = 50.0/RBAR
+*       Adopt a tidal radius of 10 units unless specified by routine SCALE.
+          IF (RTIDE.EQ.0.0D0) RTIDE = 10.0
 *
           WRITE (6,35)  GMG, SQRT(R02), OMEGA, RTIDE, RBAR
    35     FORMAT (/,12X,'POINT-MASS MODEL:    MG =',1P,E9.1,
@@ -199,13 +231,13 @@
 *       Check input for Plummer potential.
           READ (5,*)  MP, AP2, MPDOT, TDELAY
           WRITE (6,70)  MP, AP2, MPDOT, TDELAY
-   70     FORMAT (/,12X,'PLUMMER POTENTIAL:    MP =',F7.1,'  AP =',F6.2,
-     &                  '  MPDOT =',F7.3,'  TDELAY =',F6.1)
+   70     FORMAT (/,12X,'PLUMMER POTENTIAL:    MP =',F7.3,'  AP =',F6.2,
+     &                  '  MPDOT =',F7.3,'  TDELAY =',F5.1)
           MP0 = MP
           AP2 = AP2**2
 *       Rescale velocities by including the Plummer & galactic virial energy.
           IF (ZKIN.GT.0.0D0) THEN
-*       Note that QVIR = Q is saved in routine SCALE and VIR < 0.
+*       Note that QVIR = Q is saved in routine SCALE and VIR < 0 with GPU.
               CALL ENERGY
               VIR = POT - VIR
               QV = SQRT(QVIR*VIR/ZKIN)
@@ -215,6 +247,7 @@
    78             CONTINUE
    80         CONTINUE
           END IF
+          IF (RTIDE.EQ.0.0D0) RTIDE = 10.0*RSCALE
       ELSE
           MP = 0.0
       END IF

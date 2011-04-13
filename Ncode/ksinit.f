@@ -6,6 +6,8 @@
 *
       INCLUDE 'common6.h'
       REAL*8  Q(3),RDOT(3),UI(4),VI(4),A1(3,4)
+      SAVE  IPREV,EBPREV
+      DATA  IPREV,EBPREV /0,-1.0D-06/
 *
 *
 *       Set new global indices of the components and current pair index.
@@ -172,6 +174,7 @@
       NKSREG = NKSREG + 1
       IF (H(IPAIR).GT.0.0) NKSHYP = NKSHYP + 1
 *
+*       Check optional output for new KS.
       IF (KZ(10).GT.0) THEN
           RI = SQRT((X(1,NTOT) - RDENS(1))**2 +
      &              (X(2,NTOT) - RDENS(2))**2 +
@@ -181,6 +184,24 @@
      &                  STEP(NTOT), LIST(1,ICOMP), LIST(1,NTOT)
    60     FORMAT (/,' NEW KSREG    TIME =',F8.2,2I6,F12.3,1PE10.1,
      &                                  0PF7.2,F9.2,I5,F8.3,1PE10.1,2I5)
+      END IF
+*
+*       Include diagnostics for NS or BH hard binary formation.
+      IF (MAX(KSTAR(ICOMP),KSTAR(JCOMP)).GE.13.AND.EB.LT.EBH.AND.
+     &    IPHASE.NE.7) THEN
+*       Limit the diagnostics to significant change or new case.
+          ISUM = KSTAR(ICOMP) + KSTAR(JCOMP) + KSTAR(NTOT)
+          DEB = ABS((EB - EBPREV)/EBPREV)
+          IF (ISUM.NE.IPREV.OR.DEB.GT.0.1) THEN
+              IPREV = ISUM
+              EBPREV = EB
+              PD = DAYS*SEMI*SQRT(SEMI/BODY(NTOT))
+              WRITE (6,65)  TIME+TOFF, NAME(ICOMP), NAME(JCOMP),
+     &                      KSTAR(ICOMP), KSTAR(JCOMP), KSTAR(NTOT),
+     &                      SQRT(ECC2), PD, EB
+   65         FORMAT (' NS/BH BINARY    T NM K* E P EB ',
+     &                                  F8.1,2I6,3I4,F7.3,1P,E9.1,E11.2)
+          END IF
       END IF
 *
 *       Modify the termination criterion according to value of NPAIRS.

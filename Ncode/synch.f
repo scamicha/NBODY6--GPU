@@ -60,7 +60,7 @@
           ECC2 = (1.0 - R(IPAIR)/A0)**2 + TDOT2(IPAIR)**2/(A0*BODY(I))
           ECC = SQRT(ECC2)
           ITIME = ITIME + 1
-          IF (ITIME.LT.10) THEN
+          IF (ITIME.GT.10) THEN
           WRITE (6,3) NAME(I1), KSTAR(I), NCHAOS, ECC, A0, DTM, DTR
     3     FORMAT (' MISSING!   SYNCH    NM K* NCH ECC A DTM DTR ',
      &                                  I6,2I4,F8.4,1P,3E10.2)

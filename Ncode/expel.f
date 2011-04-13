@@ -1,4 +1,3 @@
-
       SUBROUTINE EXPEL(J1,J2,ICASE)
 *
 *
@@ -164,6 +163,7 @@
               WHICH1 = ' BINARY '
           ELSE
               WHICH1 = ' HYPERB '
+              NHYPC = NHYPC + 1
           END IF
           WRITE (6,10)  WHICH1, NAME(I1), NAME(I2), KSTAR(I1),KSTAR(I2),
      &                  KW1, KW2, M1, M2, DM*ZMBAR, ECC0, ECC, R1, R2,
@@ -184,6 +184,13 @@
     8                 FORMAT (' ENFORCED CE    RL*SEP ',1P,2E10.2)
                       ECC0 = ECC
                       SEMI0 = SEMI
+*       Correct for mass loss in case of coalescence which ignores DM2.
+                      IF (DM*SMU.LT.0.05) THEN
+                          CALL FICORR(I,DM)
+                      ELSE
+                          CALL FCORR(I,DM,0)
+                      END IF
+                      DM2 = 0.0
                       GO TO 1
                   END IF
               END IF
@@ -223,7 +230,7 @@
             WRITE (6,13)  NAME(I), KSTAR(I), BODY(I)*ZMBAR
    13       FORMAT (' MASSLESS GHOST    NAM K* M ',I6,I4,1P,E10.2)
 *       Include special treatment for velocity kick of KS binary.
-          ELSE IF (KW1.GE.13) THEN
+          ELSE IF (KW1.GE.10) THEN
 *
               IF (ECC.LE.0.001D0) KSTAR(N+IPAIR) = 10
 *       Re-initialize the KS solution with new perturber list.
@@ -232,7 +239,7 @@
 *       Evaluate binary disruption velocity and introduce velocity kick.
               VI2 = XDOT(1,I)**2 + XDOT(2,I)**2 + XDOT(3,I)**2
               KSTAR(I1) = -KSTAR(I1)
-              CALL KICK(IPAIR,0)
+              CALL KICK(IPAIR,0,KW1)
 *
 *       Include potential and kinetic energy corrections due to mass loss.
               CALL POTI(I,POTJ)
@@ -253,7 +260,7 @@
                   END IF
               END IF
 *
-*       Form new c.m. variables and update GRAPE.
+*       Form new c.m. variables.
               T0(I) = TIME
               DO 20 K = 1,3
                   X(K,I) = (BODY(I1)*X(K,I1) + BODY(I2)*X(K,I2))/BODY(I)
@@ -277,7 +284,7 @@
 *       Terminate KS binary and assign kick velocity to single star #I.
               I = I1 + 2*(NPAIRS - IPAIR)
               CALL KSTERM
-              CALL KICK(I,1)
+              CALL KICK(I,1,KW1)
 *       Initialize new KS polynomials after velocity kick (H > 0 is OK).
               ICOMP = IFIRST
               JCOMP = IFIRST + 1
@@ -289,9 +296,10 @@
               KSTAR(I) = 0
               IF (H(IPAIR).LT.0.0) THEN
                   SEMI = -0.5d0*BODY(I)/H(IPAIR)
-                  WRITE (6,35)  R(IPAIR)/SEMI, SEMI*SU, BODY(I)*ZMBAR,
-     &                          (XDOT(K,I)*VSTAR,K=1,3)
-   35             FORMAT (' NS BINARY    R/A A M V ',3F7.2,3F7.1)
+                  WRITE (6,35)  KW1, R(IPAIR)/SEMI, SEMI*SU,
+     &                          BODY(I)*ZMBAR, (XDOT(K,I)*VSTAR,K=1,3)
+   35             FORMAT (' WD/NS BINARY    KW R/A A M V ',
+     &                                      I4,3F7.2,3F7.1)
               END IF
           ELSE
 *       Set new binary indicator and Roche look-up time (ECC > 0 is OK).
@@ -303,6 +311,7 @@
 *       Update KSTAR & chaos variables for SYNCH after circularization.
               IF (ECC.LE.0.001D0) THEN
                  KSTAR(I) = 10
+                 NCE = NCE + 1
                  IC = 0
 *       Note: NAMEC may be set in routine CHAOS without call to SPIRAL.
                  DO 36 L = 1,NCHAOS
@@ -327,7 +336,8 @@
                  END IF
               END IF
 *
-*       Include prediction to current time before new KS and possible FPOLYI.
+*       Include prediction to end of current block-time before new KS.
+              TIME = TBLOCK
               IF (T0(I).LT.TIME.AND.DM.GT.0.0D0) THEN
                   CALL XVPRED(I,-2)
                   T0(I) = TIME
@@ -359,7 +369,7 @@
                   NNB2 = NNB + 2
                   ILIST(NNB2) = I
 *
-*       Obtain new F & FDOT and time-steps (note FPOLYI may over-write I).
+*       Obtain new F & FDOT and time-steps.
                   DO 50 L = 2,NNB2
                       J = ILIST(L)
                       IF (L.EQ.NNB2) THEN

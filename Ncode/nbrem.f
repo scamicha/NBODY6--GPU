@@ -11,6 +11,7 @@
       DO 100 LL = 1,NP
           I = JPERT(LL) 
    10     NNB1 = LIST(1,I) + 1
+          IF (NNB1.EQ.1) GO TO 100
 *
 *       First see whether body #ICM is a neighbour.
           DO 20 L = 2,NNB1
@@ -41,14 +42,6 @@
                   END IF
    50         CONTINUE
    60     CONTINUE
-*
-*       Add spurious body to maintain non-zero irregular force if needed.
-          IF (NNB1.LE.1.AND.BODY(I).GT.0.0D0) THEN
-              JJ = 0.5*(JCOMP + I)
-              IF (JJ.LT.I + 10) JJ = MIN(JJ + 10,N)
-              LIST(2,I) = JJ
-              LIST(1,I) = 1
-          END IF
 *
 *       Also check any KS perturber list.
           IF (I.GT.N) THEN

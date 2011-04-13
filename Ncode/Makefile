@@ -1,10 +1,10 @@
 .KEEP_STATE:
 #suggested by Keigo Nitadori 11/06/08.
-#FFLAGS = -O3 -Wall -ffast-math
+FFLAGS = -O3 -Wall -ffast-math
 #FFLAGS += -O3 -fbounds-check
 #FFLAGS = -O3 -pg
 CFLAGS = -O3
-FFLAGS = -O3
+#FFLAGS = -O3
 #FC = f77
 #LD = f77
 FC = gfortran

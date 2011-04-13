@@ -277,6 +277,9 @@
              IF(KSTAR(I1).GE.13.OR.KSTAR(I2).GE.13) KW = 0
 *            IF(KSTAR(I1).GE.10.OR.KSTAR(I2).GE.10) KW = 0
           END IF
+          IF (KW1.GE.10.AND.KW1.LE.12) THEN
+             IF(KSTAR(I1).GE.10.OR.KSTAR(I2).GE.10) KW = 0
+          END IF
 *
 *       Perform total force & energy corrections (new polynomial set later).
           CALL FCORR(I1,DM,KW)

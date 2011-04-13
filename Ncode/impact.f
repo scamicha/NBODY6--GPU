@@ -61,10 +61,11 @@
           END IF
    10 CONTINUE
 *
-*       Include safety check on rare case of no perturbers inside 100*RMIN.
+*       Include safety check if no perturbers or neighbours inside 100*RMIN.
       IF (NP.EQ.0) THEN
           JCOMP = LIST(2,I)
           RJMIN2 = 1.0
+          JMAX = LIST(3,I)
       ELSE IF (NP.EQ.1) THEN
           JMAX = N
       END IF
@@ -256,15 +257,13 @@
           IF (PMIN.GT.0.6*RSTAB.AND.PMIN.LT.0.9*RSTAB) GO TO 100
 *       Delay for large distance ratio outside 0.5*RMIN.
           IF (RIJ.GT.MAX(10.0*APO,0.5*RMIN)) GO TO 100
-          IF (RIJ.GT.10.0*APO) GO TO 100
           IF (PMIN.GT.2.5*APO) GO TO 40
       END IF
-      IF (PMIN.GT.3.0*SEMI.AND.JCOMP.LE.N) GO TO 40
 *
       IF (JCOMP.GT.N) THEN
           IF (RIJ.GT.10.0*APO) GO TO 100
       END IF
-*       Skip chain if merged binary or chain c.m. (denoted by NAME <= 0).
+*       Skip chain if merged binary or chain c.m. (defined by NAME <= 0).
       IF (NAME(I).LE.0.OR.NAME(JCOMP).LE.0) GO TO 100
 *
 *       Compare with existing subsystem of same type (if any).
@@ -489,7 +488,6 @@
       ELSE
           PERT = PERT*(ABS(SEMI1)/RIJ)**3
       END IF
-      PERTA = PERT4*(RA/RIJ)**3
 *
 *       Check tidal capture option (synchronous or evolving binary orbit).
       IF (KZ(27).GT.0) THEN
@@ -547,39 +545,22 @@
           IF (KSTAR(I).EQ.-1.OR.KSTAR(JCOMP).EQ.-1) GO TO 100
       END IF
 *
-*       Ensure consistency of estimated perturbations with termination.
-      PERT = PERT + PERTA
-      IF (NP.LE.3) THEN
-          NP = LIST(1,I)
-*       Copy neighbour list (routine FPERT skips body #JCOMP).
-          DO 38 L = 1,NP
-              JLIST(L) = LIST(L+1,I)
-   38     CONTINUE
+*       Skip merger if an outer binary is fairly perturbed or not hard.
+   40 IF (JCOMP.GT.N) THEN
+          IF (GAMMA(JPAIR).GT.1.0E-03.OR.EB2.GT.EBH) GO TO 100
       END IF
 *
-*       Allow highly eccentric outer orbit (estimated PERT may be excessive).
-      IF (ECC1.GT.0.98.AND.RIJ.LT.0.1*SEMI1) THEN
-          PERT = PERT4
-          GO TO 40
-      END IF
+*       Estimate relative perturbation at apocentre from actual value.
+      GI = PERT*(SEMI1*(1.0 + ECC1)/RIJ)**3
+      IF (PERT.GT.GMAX.OR.GI.GT.0.05) GO TO 100
 *
-*       Evaluate the actual perturbation.
-      CALL FPERT(I,JCOMP,NP,PERT2)
-      PERT2 = PERT2*RJMIN2/(BODY(I) + BODY(JCOMP))
-      GI = PERT2*(RA/RIJ)**3
 *       Switch to direct integration for planetary systems if GI > 1D-04.
       IF (MIN(BODY(I1),BODY(I2)).LT.0.05*BODYM) THEN
           IF (GI.GT.1.0D-04) GO TO 100
       END IF
-      IF (PERT4.GT.GMAX.OR.GI.GT.0.05) GO TO 100
- 
-*       Skip merger if an outer binary is fairly perturbed or not hard.
-      IF (JCOMP.GT.N) THEN
-          IF (GAMMA(JPAIR).GT.1.0E-03.OR.EB2.GT.EBH) GO TO 100
-      END IF
 *
 *       Ensure the inner semi-major axis is used for subsequent tests.
-   40 SEMI = -0.5*BODY(I)/H(IPAIR)
+      SEMI = -0.5*BODY(I)/H(IPAIR)
       IF (NMERGE.EQ.MMAX - 1) THEN
           IF (NWARN.LT.1000) THEN
               NWARN = NWARN + 1

@@ -11,7 +11,7 @@
 *       Roche-lobe mass transfer & Mardling 2007 stability criterion.
 *       -------------------------------------------------------------
 *
-*       Developed by Sverre Aarseth, IOA, Cambridge (V 7.3 07/09).
+*       Developed by Sverre Aarseth, IoA, Cambridge (V 7.5 08/10).
 *       ..........................................................
 *
 *       Binary and chain regularization: Seppo Mikkola, Turku.
@@ -20,8 +20,8 @@
 *       Stellar evolution: Chris Tout & Jarrod Hurley (Swinburn).
 *       .........................................................
 *
-*       GPU support: Keigo Nitadori, Riken (V 8.0.0 4/09).
-*       ..................................................
+*       GPU support: Keigo Nitadori, Riken (V 9.0.0 08/10).
+*       ...................................................
 *
       PROGRAM NBODY6
 *
@@ -29,8 +29,9 @@
       EXTERNAL MERGE
 *
 *
-*       Initialize the timer.
+*       Initialize the timers.
       CALL CPUTIM(CPU0)
+      WTOT0 = 0.0
 *
 *       Read start/restart indicator & CPU time.
       READ (5,*)  KSTART, TCOMP

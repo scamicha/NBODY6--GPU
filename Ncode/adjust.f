@@ -192,7 +192,7 @@
 *       Specify binding energy per unit mass of hard binary (impose Q = 0.5).
           ECLOSE = 4.0*MAX(ZKIN,ABS(ZKIN - POT))/ZMASS
 *       Adopt central velocity as upper limit (avoids large kick velocities).
-          IF (2.0*ZKIN/ZMASS.GT.VC**2) ECLOSE = 2.0*VC**2
+          IF (2.0*ZKIN/ZMASS.GT.VC**2.AND.VC.GT.0.0) ECLOSE = 2.0*VC**2
           IF (Q.GT.0.5) THEN
               ECLOSE = 0.5*ECLOSE/Q
           END IF
@@ -215,7 +215,14 @@
       RMIN2 = RMIN**2
       RMIN22 = 4.0*RMIN2
       EBH = -0.5*BODYM*ECLOSE
-      IF (TIME.LE.0.0D0) STEPJ = 0.01*(60000.0/FLOAT(N))**0.3333
+      IF (TIME.LE.0.0D0) THEN
+          STEPJ = 0.01*(60000.0/FLOAT(N))**0.3333
+          IF (DMOD(SMAX,DTK(10)).NE.0.0D0) THEN
+              WRITE (6,43)  SMAX, SMAX/DTK(10)
+   43         FORMAT (' FATAL ERROR!    SMAX SMAX/DTK(10) ',1P,2E10.2)
+              STOP
+          END IF
+      END IF
 *       Adopt 2*RSMIN for neighbour sphere volume factor in routine REGINT.
       RSFAC = MAX(25.0/TCR,3.0D0*VC/(2.0D0*RSMIN))
 *
@@ -238,10 +245,10 @@
 *
 *       Print energy diagnostics & KS parameters.
       ICR = TTOT/TCR
-      WRITE (6,45)  TTOT, Q, DE, BE(3),RMIN, DTMIN, ECLOSE, ICR, DELTA1
+      WRITE (6,45)  TTOT, Q, DE, BE(3), RMIN, DTMIN, ICR, DELTA1, E(3)
    45 FORMAT (/,' ADJUST:  TIME =',F8.2,'  Q =',F5.2,'  DE =',1P,E10.2,
      &          '  E =',0P,F10.6,'  RMIN =',1P,E8.1,'  DTMIN =',E8.1,
-     &          '  ECLOSE =',0PF5.2,'  TC =',I5,'  DELTA =',1P,E9.1)
+     &          '  TC =',0P,I5,'  DELTA =',1P,E9.1,'  E(3) =',0P,F10.6)
       CALL FLUSH(6)
 *
 *       Perform automatic error control (RETURN on restart with KZ(2) > 1).
@@ -285,7 +292,7 @@
       IF (KZ(40).EQ.3) THEN
           NNBMAX = NBZERO*SQRT(FLOAT(N)/FLOAT(NZERO))
           ZNBMAX = 0.9*NNBMAX
-          ZNBMIN = 0.2*NNBMAX
+          ZNBMIN = MAX(0.2*NNBMAX,1.0)
       END IF
 *
 *       Include optional fine-tuning of neighbour number (#40 >= 2).
@@ -332,7 +339,8 @@
       END IF
 *
 *       Include optional KS reg of binaries outside standard criterion.
-      IF (KZ(8).GT.0) THEN
+      IF (KZ(8).GT.0.AND.DMOD(TIME,DTK(10)).EQ.0.0D0) THEN
+*       Note DMOD condition needed for CALL KSREG and CALL STEPS.
           DTCL = 30.0*DTMIN
           RCL = 10.0*RMIN
           CALL SWEEP(DTCL,RCL)
@@ -358,7 +366,7 @@
       IF (KZ(2).GE.1.AND.NSUB.EQ.0) CALL MYDUMP(1,2)
 *
 *       Check termination criteria (TIME > TCRIT & N <= NCRIT).
-      IF (TTOT.GE.TCRIT.OR.N.LE.NCRIT) THEN
+      IF (TTOT.GE.TCRIT.OR.N.LE.NCRIT.OR.TTOT+DTADJ.GT.TCRIT) THEN
 *       Terminate after optional COMMON save.
           WRITE (6,65)  TTOT, CPUTOT/60.0, ERRTOT, DETOT
    65     FORMAT (//,9X,'END RUN',3X,'TIME =',F7.1,'  CPUTOT =',F7.1,

@@ -269,7 +269,7 @@
           QPS = QPERI/R1
           WRITE (6,35)  TIME+TOFF, NAME(I1), NAME(I2), ECC, ECC1, QPS,
      &                  SEMI1
-   35     FORMAT (' NEW CAPTURE    T NM EF QP E EF QP/R* A1 ',
+   35     FORMAT (' NEW CAPTURE    T NM E EF QP/R* A1 ',
      &                             F9.2,2I6,2F9.4,1P,2E10.2)
       END IF
 *

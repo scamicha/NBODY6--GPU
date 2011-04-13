@@ -52,9 +52,9 @@
 *     WRITE (6,20)  SEMI, R(IPAIR), H(IPAIR), GAMMA(IPAIR)
 *  20 FORMAT (' APOCENTRE:    A RA H G ',1P,2E10.2,2E10.1)
 *
-*       Save KS parameters for neutron star kick (routine FCORR).
+*       Save KS parameters for WD or neutron star kick (routine FCORR).
    30 IF (IKICK.GT.0) THEN
-          CALL KICK(IPAIR,0)
+          CALL KICK(IPAIR,0,0)
       END IF
 *
       RETURN

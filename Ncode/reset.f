@@ -316,6 +316,12 @@
           END IF
    96 CONTINUE
 *
+*       Reduce merger energy on zero membership for consistency.
+      IF (NMERGE.EQ.0) THEN
+          BE(3) = BE(3) - EMERGE
+          EMERGE = 0.0
+      END IF
+*
 *       Set phase indicator < 0 for new time-step list in routine INTGRT.
       IPHASE = -1
 *

@@ -67,7 +67,8 @@
 *
 *       See whether dominant component is a single particle inside RMIN.
       IF (JCOMP.LT.IFIRST.OR.JCOMP.GT.N) GO TO 10
-      IF (RJMIN2.GT.RMIN2) GO TO 10
+*       Accept one single candidate inside 2*RMIN (which makes PERT = 0).
+      IF (RJMIN2.GT.RMIN2.AND.NCLOSE.GT.1) GO TO 10
 *
       RDOT = (X(1,I) - X(1,JCOMP))*(XDOT(1,I) - XDOT(1,JCOMP)) +
      &       (X(2,I) - X(2,JCOMP))*(XDOT(2,I) - XDOT(2,JCOMP)) +

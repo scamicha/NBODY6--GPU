@@ -28,6 +28,7 @@
       DMIN4 = 100.0
       DMINC = 100.0
       CPUTOT = 0.0
+      WTOT = 0.0D0
       ERROR = 0.0D0
       ERRTOT = 0.0D0
       DETOT = 0.0D0
@@ -58,7 +59,6 @@
       NCH = 0
       NBIN0 = 0
       NHI0 = 0
-      NTTOT = 0
       IFIRST = 1
       IPHASE = 0
       ICOMP = 0
@@ -73,7 +73,9 @@
       LISTD(1) = 0
       LISTV(1) = 0
       NTAIL = 0
+      NTTOT = 0
       NRSAVE = 0
+      NNBOPT = 0  ! NBODY6++ compatibility.
 *
       DO 10 J = 1,KMAX
           KVEC(2*J-1) = J

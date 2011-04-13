@@ -18,9 +18,9 @@
 *       Note possible large RS0 set in routine MERGE at later times.
           IF (TIME.EQ.0.0D0) THEN
               RS2 = RS2*(1.0 + RI2)
-          ELSE
-              RSX = 0.3*(1000.0/FLOAT(N - NPAIRS))**0.3333
-              RS2 = (RSX*RSCALE)**2*(1.0 + RI2)
+*         ELSE
+*             RSX = 0.3*(1000.0/FLOAT(N - NPAIRS))**0.3333
+*             RS2 = (RSX*RSCALE)**2*(1.0 + RI2)
           END IF
       END IF
 *

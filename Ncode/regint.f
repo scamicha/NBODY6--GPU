@@ -54,6 +54,8 @@
 *
 *       Perform fast force loop over single particles.
       DO 10 J = IFIRST,N
+*       Note that skip here may be better for optimizing compiler.
+          IF (J.EQ.I) GO TO 10
           A1 = X(1,J) - XI(1)
           A2 = X(2,J) - XI(2)
           A3 = X(3,J) - XI(3)
@@ -72,8 +74,6 @@
           IF (RIJ2.GT.RS2.AND.STEP(J).GT.10.0*SMIN) THEN
 *       Accept member if maximum penetration factor exceeds 8 per cent.
               IF (DRDV.GT.VRFAC) GO TO 8
-          ELSE
-              IF (J.EQ.I) GO TO 10
           END IF
 *
 *       Increase neighbour counter and obtain current irregular force.
@@ -149,6 +149,7 @@
               WDOT = 0.0
               W2DOT = 0.0
 *             W3DOT = 0.0
+*       Integrate Taylor series for V*P using final values.
               DO 24 K = 1,3
                   PX = FREG(K) - FRX(K)
                   DPX = FDR(K) - FDX(K)
@@ -156,43 +157,38 @@
                   W2DOT = W2DOT + (FREG(K) + FIRR(K))*PX + XIDOT(K)*DPX
 *                 W3DOT = W3DOT + 2.0*(FREG(K) + FIRR(K))*DPX +
 *    &                            (FDR(K) + FD(K))*PX
+*       Second-order term derived by Douglas Heggie (Aug/03).
    24         CONTINUE
-*       Note: second-order term derived by Douglas Heggie (Aug/03).
+*       Accumulate tidal energy change for general galactic potential.
+*             ETIDE = ETIDE - BODY(I)*((ONE6*W3DOT*DTR - 0.5*W2DOT)*DTR
+*    &                                                 + WDOT)*DTR
+*       Note Taylor series at end of interval with negative argument.
+              ETIDE = ETIDE + BODY(I)*(0.5*W2DOT*DTR - WDOT)*DTR
           END IF
       END IF
 *
       NNB = NNB - 1
-*       Check for zero neighbour number or distant particle with large STEP.
-      IF (NNB.EQ.0.OR.(RI2.GT.100.0*RH2.AND.
-     &    STEP(I).GT.200.0*DTMIN)) THEN
-*       Double the neighbour sphere and try again unless RI > 10*RSCALE.
-          IF (RI2.GT.100.0*RH2.OR.LIST(1,I).EQ.0) THEN
-              IRSKIP = 1
-*       Assume small mass at centre for distant body or no neighbours.
-              R2 = XI(1)**2 + XI(2)**2 + XI(3)**2
-              FIJ = 0.01*BODYM/(R2*SQRT(R2))
-              RDOT = 3.0*(XI(1)*XIDOT(1) + XI(2)*XIDOT(2) +
-     &                                     XI(3)*XIDOT(3))/R2
-              DO 25 K = 1,3
-                  FIRR(K) = FIRR(K) - FIJ*XI(K)
-                  FD(K) = FD(K) - (XIDOT(K) - RDOT*XI(K))*FIJ
-   25         CONTINUE
-*       Check maximum membership (note: NNB may be large).
-              IF (NNB.GT.NNBMAX) THEN
-                  RS2 = 0.9*RS2
-                  GO TO 1
-              ELSE
-*       Reduce neighbour sphere gradually but allow encounter detection.
-                  RS(I) = MAX(0.75*RS(I),0.1*RSCALE)
-                  GO TO 50
-              END IF
+*       Check for zero neighbour number.
+      IF (NNB.EQ.0) THEN
+*       Assume small mass at centre to avoid zero irregular force.
+          R2 = XI(1)**2 + XI(2)**2 + XI(3)**2
+          FIJ = 0.01*BODYM/(R2*SQRT(R2))
+          RDOT = 3.0*(XI(1)*XIDOT(1) + XI(2)*XIDOT(2) +
+     &                                 XI(3)*XIDOT(3))/R2
+          DO 25 K = 1,3
+              FIRR(K) = FIRR(K) - FIJ*XI(K)
+              FD(K) = FD(K) - (XIDOT(K) - RDOT*XI(K))*FIJ
+   25     CONTINUE
+*       Modify neighbour sphere gradually but allow encounter detection.
+          IF (RDOT.GT.0.0) THEN
+              RS(I) = MAX(0.75*RS(I),0.1*RSCALE)
           ELSE
-              RS2 = 1.59*RS2
+              RS(I) = 1.1*RS(I)
           END IF
-          RS(I) = SQRT(RS2)
           NBVOID = NBVOID + 1
-          IF (RS(I).GT.10.0*RSCALE.AND.KZ(39).EQ.0) IRSKIP = 1
-          GO TO 1
+          IRSKIP = 1
+*       Skip another full N loop.
+          GO TO 50
       END IF
 *
 *       Restrict neighbour number < NNBMAX to permit one normal addition.
@@ -283,7 +279,7 @@
       END IF
 *
 *       See whether neighbour radius of c.m. body should be increased.
-      IF (I.GT.N) THEN
+      IF (I.GT.N.AND.RI2.LT.RH2) THEN
 *       Set perturber range (soft binaries & H > 0 have short duration).
           A2 = 100.0*BODY(I)/ABS(H(I-N))
 *       Stabilize NNB on ZNBMAX if too few perturbers.
@@ -321,7 +317,7 @@
       END IF
 *
 *       Calculate the radial velocity with respect to at most 3 neighbours.
-      IF (NNB.LE.3.AND.RI2.LT.9.0*RH2) THEN
+      IF (NNB.LE.3) THEN
           A1 = 2.0*RS(I)
 *
           DO 45 L = 1,NNB
@@ -337,6 +333,8 @@
 *
 *       Increase neighbour sphere if all members are leaving inner region.
           RS(I) = MAX(A1,1.1*RS(I))
+*       Impose minimum size to include wide binaries (cf. NNB = 0 condition).
+          RS(I) = MAX(0.1*RSCALE,RS(I))
       END IF
 *
 *       Check minimum neighbour sphere since last output (skip NNB = 0).
@@ -388,7 +386,7 @@
           J = LIST(L,I)
           JLIST(NBLOSS) = J
 *       Check SMIN step indicator (rare case permits fast skip below).
-          IF (STEP(J).LT.SMIN) JMIN = J
+          IF (STEP(J).LT.0.1*DTMIN) JMIN = J
           LG = LG - 1
       END IF
 *
@@ -411,12 +409,12 @@
       K = 1
    60 IF (NNB.GT.NNBMAX.OR.I.GT.N) GO TO 70
       J = JLIST(K)
-*       A single regularized component will be replaced by the c.m.
-      IF (STEP(J).GT.SMIN.OR.J.LT.IFIRST.OR.J.GT.N) GO TO 68
-*       Retain old neighbour inside 2*RS to avoid large correction terms.
+*       Skip single regularized component (replaced by c.m.) and also c.m.
+      IF (STEP(J).GT.0.1*DTMIN.OR.J.LT.IFIRST.OR.J.GT.N) GO TO 68
+*       Retain old neighbour inside 1.4*RS to avoid large correction terms.
       RIJ2 = (XI(1) - X(1,J))**2 + (XI(2) - X(2,J))**2 +
      &                             (XI(3) - X(3,J))**2
-      IF (RIJ2.GT.4.0*RS2) GO TO 68
+      IF (RIJ2.GT.2.0*RS2) GO TO 68
 *
       L = NNB + 1
    62 IF (ILIST(L).LT.J) GO TO 64
@@ -564,7 +562,7 @@
 *     TTMP = TSTEP(FREG,FDR,D2R(1,I),D3R(1,I),ETAR)
 *
 *       Adopt FAC*MIN(FREG,FIRR) (or tidal force) for convergence test.
-      FAC = MIN(ETAR,0.04D0)
+      FAC = ETAR
       IF (KZ(14).EQ.0) THEN
           FI2 = FIRR(1)**2 + FIRR(2)**2 + FIRR(3)**2
           DF2 = FAC**2*MIN(FR2,FI2)
@@ -590,7 +588,6 @@
 *       See whether regular step can be increased by factor 2.
       IF (W0.LT.DF2) THEN
           TTMP = DTC
-          NRCONV = NRCONV + 1
       END IF
 *
 *       Impose a smooth step reduction inside compact core.
@@ -601,7 +598,7 @@
 *       Select discrete value (increased by 2, decreased by 2 or unchanged).
       IF (TTMP.GT.2.0*STEPR(I)) THEN
           IF (DMOD(TIME,2.0*STEPR(I)).EQ.0.0D0) THEN 
-              TTMP = MIN(2.0*STEPR(I),1.0D0)
+              TTMP = MIN(2.0*STEPR(I),SMAX)
           ELSE
               TTMP = STEPR(I) 
           END IF

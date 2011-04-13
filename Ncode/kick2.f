@@ -23,7 +23,8 @@
       CALL KSTERM
 *
 *       Implement kick velocity for single component (mass loss in ROCHE).
-      CALL KICK(I,1)
+      KW = KSTAR(I)
+      CALL KICK(I,1,KW)
 *
 *       Re-initialize the KS regularization.
       ICOMP = IFIRST

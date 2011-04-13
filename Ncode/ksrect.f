@@ -77,10 +77,10 @@
 *       Adopt C1*C2 = CK for difficult case (Seppo's suggestion of 1991).
           C1 = 1.0
           CK = BODY(N+IPAIR)/SQRT(-8.0D0*H(IPAIR)*R(IPAIR)*UPR2)
-          WRITE (6,20)  IPAIR, KSTAR(N+IPAIR), R(IPAIR), H(IPAIR),
+          WRITE (6,20)  IPAIR, KSTAR(N+IPAIR), ECC, R(IPAIR), H(IPAIR),
      &                  GAMMA(IPAIR), UPR2, A2, CK-1.0
-   20     FORMAT (' WARNING!    KSRECT    KS K* R H G UPR2 A2 CK-1 ',
-     &                                    2I4,1P,6E10.2)
+   20     FORMAT (' WARNING!    KSRECT    KS K* E R H G UPR2 A2 CK-1 ',
+     &                                    2I4,F8.4,1P,6E10.2)
           ITER = ITER + 1
       END IF
 *
