@@ -18,7 +18,7 @@ gpu: gpunb.gpu.o gpupot.gpu.o intgrt.o gpucor.o nbintp.o cnbint.o nbint.o start.
 	cp -f gpunb.gpu.o gpunb.o
 	cp -f gpupot.gpu.o gpupot.o
 	cp -f *.o ../Ncode
-	make gpu -C ../Ncode -f ../GPU2/Makefile_gpu -j4
+	make gpu -C ../Ncode -f ../GPU2/Makefile_gpu
 	mv -f ../Ncode/nbody6 $(RUNDIR)/nbody6.gpu
 
 sse: gpunb.sse.o gpupot.sse.o intgrt.o gpucor.o nbintp.o cnbint.o nbint.o start.o fpoly2a.o adjust.o energy2.o phicor.o cmfirr.o cmfirr2.o checkl2.o kspert.o swap.o scale.o wtime.o cxvpred.o gpuirr.o jpred.o fpcorr2.o repair.o

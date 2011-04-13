@@ -7,13 +7,13 @@ FFLAGS = -O3 -Wall -ffast-math
 #FFLAGS +=  -pg
 FC = gfortran
 #FC = gfortran44
-LD_GPU = gfortran -lstdc++ -L /usr/local/cuda/lib64 -lcudart -fopenmp
+LD_GPU = gfortran -lstdc++ -L /sw/keeneland/cuda/3.2/linux_binary/lib64 -lcudart -fopenmp
 #LD_GPU = gfortran44 -lstdc++ -L /usr/local/cuda/lib64 -lcudart -fopenmp
-LD_GPU += -B /usr/share/libhugetlbfs -Wl,--hugetlbfs-link=B
+#LD_GPU += -B /nics/c/home/scamicha/share/lib64 -Wl,--hugetlbfs-link=B
 #LD_GPU += -pg
 LD_SSE = gfortran -lstdc++ -fopenmp
 #LD_SSE = gfortran44 -lstdc++ -fopenmp
-LD_SSE += -B /usr/share/libhugetlbfs -Wl,--hugetlbfs-link=B
+#LD_SSE += -B /nics/c/home/scamicha/share/lib64 -Wl,--hugetlbfs-link=B
 #LD_SSE += -pg
 
 VPATH = ../Chain:../Nchain
