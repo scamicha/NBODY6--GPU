@@ -6,9 +6,9 @@ FFLAGS = -O3 -Wall
 FC = gfortran
 CXX = g++ -O3 -Wall -march=core2 #-pg
 #CXX = g++ -O3 -Wall -msse3
-CUDA_PATH = /usr/local/cuda
-SDK_PATH = /usr/local/NVIDIA_CUDA_SDK
-NVCC = $(CUDA_PATH)/bin/nvcc --host-compilation C++ -Xcompiler "-Wall -O3 -fopenmp" -I $(SDK_PATH)/common/inc/ #-pg
+CUDA_PATH = /sw/keeneland/cuda/3.2/linux_binary
+SDK_PATH = /nics/c/home/scamicha/NVIDIA_GPU_Computing_SDK/C
+NVCC = $(CUDA_PATH)/bin/nvcc -Xcompiler "-Wall -O3 -fopenmp" -I $(SDK_PATH)/common/inc/ #-pg
 RUNDIR = ./run
 
 OBJECTS = $(SOURCE:.f=.o)

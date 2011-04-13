@@ -9,11 +9,12 @@
 #include "cuda_pointer.h"
 
 #define NTHREAD 64 // 64, 96, 128 or 192
-#define NJBLOCK 448 // 8800GTS/512 has 16
+// #define NJBLOCK 16 // 8800GTS/512 has 16
+#define NJBLOCK 14 // for GTX 470
 #define NIBLOCK 16 // 16 or 32 
 #define NIMAX (NTHREAD * NIBLOCK) // 1024
 
-#define NBMAX 128 // NNB per block, must be power of 2
+#define NBMAX 64 // NNB per block, must be power of 2
 
 #define MAX_CPU 8
 #define MAX_GPU 4
@@ -56,9 +57,15 @@ struct myvector{
 #ifdef PROFILE
 #include <sys/time.h>
 static double get_wtime(){
+#if 1
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return tv.tv_sec + 1.e-6 * tv.tv_usec;
+#else
+	struct timespec tv;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &tv);
+	return tv.tv_sec + 1.e-9 * tv.tv_nsec;
+#endif
 }
 #else
 static double get_wtime(){
@@ -66,7 +73,7 @@ static double get_wtime(){
 }
 #endif
 
-static double time_send, time_grav;
+static double time_send, time_grav, time_reduce;
 static long long numInter;
 
 struct Jparticle{
@@ -156,6 +163,7 @@ __device__ void h4_kernel(
 	jrk.z += mrinv3 * (dvz + rv * dz);
 }
 
+#if 0
 __device__ void h4_grav_kernel(
 		const int j,
 		const Iparticle &ip, 
@@ -209,6 +217,7 @@ __device__ void h4_neib_kernel(
 		nnb++;
 	}
 }
+#endif
 
 __global__ void h4_gravity(
 		int nbody,
@@ -296,11 +305,11 @@ static myvector<int> nblist[MAX_CPU];
 static int nbody, nbodymax;
 static int device_id[MAX_GPU];
 // static int *nblist;
+static bool is_open = false;
+static bool devinit = false;
 
-void GPUNB_open(int nbmax){
-	time_send = time_grav = 0.0;
-	numInter = 0;
-	nbodymax = nbmax;
+void GPUNB_devinit(){
+	if(devinit) return;
 
 	cudaGetDeviceCount(&numGPU);
 	assert(numGPU <= MAX_GPU);
@@ -328,23 +337,88 @@ void GPUNB_open(int nbmax){
 		if(tid == 0) numCPU = omp_get_num_threads();
 	}
 	assert(numCPU <= MAX_CPU);
+	assert(numGPU <= numCPU);
+#pragma omp parallel
+	{
+		int tid = omp_get_thread_num();
+		if(tid < numGPU){
+			cudaSetDevice(device_id[tid]);
+		}
+	}
+#ifdef PROFILE
+	fprintf(stderr, "***********************\n");
+	fprintf(stderr, "Initializing NBODY6/GPU library\n");
+	fprintf(stderr, "#CPU %d, #GPU %d\n", numCPU, numGPU);
+	fprintf(stderr, " device:");
+	for(int i=0; i<numGPU; i++){
+		fprintf(stderr, " %d", device_id[i]);
+	}
+	fprintf(stderr, "\n");
+	fprintf(stderr, "***********************\n");
+#endif
+	devinit = true;
+}
+
+void GPUNB_open(int nbmax){
+	time_send = time_grav = time_reduce = 0.0;
+	numInter = 0;
+	nbodymax = nbmax;
+
+	if(is_open){
+		fprintf(stderr, "gpunb: it is already open\n");
+		return;
+	}
+	is_open = true;
+
+#if 0
+	cudaGetDeviceCount(&numGPU);
+	assert(numGPU <= MAX_GPU);
+	char *gpu_list = getenv("GPU_LIST");
+	if(gpu_list){
+		// get GPU list from environment variable
+		numGPU = 0;
+		char *p = strtok(gpu_list, " ");
+		while(p){
+			device_id[numGPU++] = atoi(p);
+			p = strtok(NULL, " ");
+			assert(numGPU <= MAX_GPU);
+		}
+	}else{
+		// use all GPUs
+		for(int i=0; i<numGPU; i++){
+			device_id[i] = i;
+		}
+	}
+	
+	// numGPU = 1;
+#pragma omp parallel
+	{
+		int tid = omp_get_thread_num();
+		if(tid == 0) numCPU = omp_get_num_threads();
+	}
+	assert(numCPU <= MAX_CPU);
+	assert(numGPU <= numCPU);
+#else
+	GPUNB_devinit();
+#endif
 
 	for(int id=0; id<numGPU + 1; id++){
 		joff[id] = (id * nbmax) / numGPU;
 	}
 
-	omp_set_num_threads(numGPU);
+	// omp_set_num_threads(numGPU);
 #pragma omp parallel
 	{
 		int tid = omp_get_thread_num();
-		// cudaSetDevice(tid);
-		cudaSetDevice(device_id[tid]);
-		int nj = joff[tid+1] - joff[tid];
-		jpbuf[tid].allocate(nj + NTHREAD);
-		ipbuf[tid].allocate(NIMAX);
-		fobuf[tid].allocate(NIMAX);
+		if(tid < numGPU){
+			cudaSetDevice(device_id[tid]);
+			int nj = joff[tid+1] - joff[tid];
+			jpbuf[tid].allocate(nj + NTHREAD);
+			ipbuf[tid].allocate(NIMAX);
+			fobuf[tid].allocate(NIMAX);
+		}
 	}
-	omp_set_num_threads(numCPU);
+	// omp_set_num_threads(numCPU);
 #pragma omp parallel
 	{
 		int tid = omp_get_thread_num();
@@ -359,21 +433,32 @@ void GPUNB_open(int nbmax){
 		fprintf(stderr, " %d", device_id[i]);
 	}
 	fprintf(stderr, "\n");
+	for(int i=0; i<numGPU+1; i++){
+		fprintf(stderr, " %d", joff[i]);
+	}
+	fprintf(stderr, "\n");
 	fprintf(stderr, "nbmax = %d\n", nbmax);
 	fprintf(stderr, "***********************\n");
 #endif
 }
 
 void GPUNB_close(){
-	omp_set_num_threads(numGPU);
+	if(!is_open){
+		fprintf(stderr, "gpunb: it is already close\n");
+		return;
+	}
+	is_open = false;
+	// omp_set_num_threads(numGPU);
 #pragma omp parallel
 	{
 		int tid = omp_get_thread_num();
-		jpbuf[tid].free();
-		ipbuf[tid].free();
-		fobuf[tid].free();
+		if(tid < numGPU){
+			jpbuf[tid].free();
+			ipbuf[tid].free();
+			fobuf[tid].free();
+		}
 	}
-	omp_set_num_threads(numCPU);
+	// omp_set_num_threads(numCPU);
 	nbodymax = 0;
 
 #ifdef PROFILE
@@ -385,13 +470,15 @@ void GPUNB_close(){
 	std::cerr << "***********************" << std::endl;
 # else
 	fprintf(stderr, "***********************\n");
-	fprintf(stderr, "time send : %f sec\n", time_send);
-	fprintf(stderr, "time grav : %f sec\n", time_grav);
+	fprintf(stderr, "time send   : %f sec\n", time_send);
+	fprintf(stderr, "time grav   : %f sec\n", time_grav);
+	fprintf(stderr, "time reduce : %f sec\n", time_reduce);
 	fprintf(stderr, "%f Gflops (gravity part only)\n", 60.e-9 * numInter / time_grav);
 	fprintf(stderr, "***********************\n");
 # endif
 #endif
 }
+
 void GPUNB_send(
 		int _nbody,
 		double mj[],
@@ -403,22 +490,24 @@ void GPUNB_send(
 	for(int id=0; id<numGPU + 1; id++){
 		joff[id] = (id * nbody) / numGPU;
 	}
-	omp_set_num_threads(numGPU);
+	// omp_set_num_threads(numGPU);
 #pragma omp parallel
 	{
 		int tid = omp_get_thread_num();
-		int nj = joff[tid+1] - joff[tid];
-		// fprintf(stderr, "%d : %d\n", tid, nj);
-		for(int j=0; j<nj; j++){
-			int jj = j + joff[tid];
-			jpbuf[tid][j] = Jparticle(mj[jj], xj[jj], vj[jj]);
+		if(tid < numGPU){
+			int nj = joff[tid+1] - joff[tid];
+			// fprintf(stderr, "%d : %d\n", tid, nj);
+			for(int j=0; j<nj; j++){
+				int jj = j + joff[tid];
+				jpbuf[tid][j] = Jparticle(mj[jj], xj[jj], vj[jj]);
+			}
+			jpbuf[tid].htod(nj);
 		}
-		jpbuf[tid].htod(nj);
 	}
 	// size_t jpsize = nj * sizeof(Jparticle);
 	// cudaMemcpy(jp_dev, jp_host, jpsize, cudaMemcpyHostToDevice);
 	time_send += get_wtime();
-	omp_set_num_threads(numCPU);
+	// omp_set_num_threads(numCPU);
 }
 
 static void handle_overflow(
@@ -480,31 +569,42 @@ void GPUNB_regf(
 	numInter += ni * nbody;
 	assert(0 < ni && ni <= NIMAX);
 
-	omp_set_num_threads(numGPU);
+	// omp_set_num_threads(numGPU);
 #pragma omp parallel
 	{
 		int tid = omp_get_thread_num();
-		for(int i=0; i<ni; i++){
-			ipbuf[tid][i] = Iparticle(h2[i], xi[i], vi[i]);
+		if(tid < numGPU){
+			// cudaSetDevice(device_id[tid]);
+			int dev;
+			cudaGetDevice(&dev);
+			assert(dev == device_id[tid]);
+			for(int i=0; i<ni; i++){
+				ipbuf[tid][i] = Iparticle(h2[i], xi[i], vi[i]);
+			}
+			// set i-particles
+			ipbuf[tid].htod(ni);
+
+			// gravity kernel
+			int niblock = 1 + (ni-1) / NTHREAD;
+			dim3 grid(niblock, NJBLOCK, 1);
+			dim3 threads(NTHREAD, 1, 1);
+			int nj = joff[tid+1] - joff[tid];
+			h4_gravity <<< grid, threads >>> 
+				(nj, ipbuf[tid], jpbuf[tid], fobuf[tid]);
+
+			// recieve force
+			// fprintf(stderr, "DBG %d %d\n", tid, device_id[tid]);
+			fobuf[tid].dtoh(ni);
 		}
-		// set i-particles
-		ipbuf[tid].htod(ni);
-
-		// gravity kernel
-		int niblock = 1 + (ni-1) / NTHREAD;
-		dim3 grid(niblock, NJBLOCK, 1);
-		dim3 threads(NTHREAD, 1, 1);
-		int nj = joff[tid+1] - joff[tid];
-		h4_gravity <<< grid, threads >>> 
-			(nj, ipbuf[tid], jpbuf[tid], fobuf[tid]);
-
-		// recieve force
-		fobuf[tid].dtoh(ni);
 	}
 
+	const double wt = get_wtime();
+	time_grav   += wt;
+	time_reduce -= wt;
+
 	// reduction phase
-	omp_set_num_threads(numCPU);
-// #pragma omp parallel for
+	// omp_set_num_threads(numCPU);
+#pragma omp parallel for
 	for(int i=0; i<ni; i++){
 		int tid = omp_get_thread_num();
 		double ax=0, ay=0, az=0;
@@ -590,10 +690,14 @@ void GPUNB_regf(
 		exit(1);
 	}
 #endif
-	time_grav += get_wtime();
+	// time_grav += get_wtime();
+	time_reduce += get_wtime();
 }
 
 extern "C" {
+	void gpunb_devinit_(){
+		GPUNB_devinit();
+	}
 	void gpunb_open_(int *nbmax){
 		GPUNB_open(*nbmax);
 	}

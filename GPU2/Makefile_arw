@@ -1,7 +1,7 @@
 .KEEP_STATE: #suggested by Keigo Nitadori 11/06.
 CFLAGS = -O3 -Wall -ffast-math
 FFLAGS = -O3 -Wall -ffast-math
-#FFLAGS +=  -fbounds-check
+#FFLAGS +=  -O3 -fbounds-check
 #FFLAGS = -O3 -g
 #FFLAGS +=  -traceback
 #FFLAGS +=  -pg
@@ -16,7 +16,8 @@ LD_SSE = gfortran -lstdc++ -fopenmp
 LD_SSE += -B /usr/share/libhugetlbfs -Wl,--hugetlbfs-link=B
 #LD_SSE += -pg
 
-VPATH = ../Chain:../Nchain
+#VPATH = ../Chain:../Nchain
+VPATH = ../ARWchain:../ARWint:
 
 SOURCE = \
 nbody6.f adjust.f assess.f bindat.f binev.f binout.f binpop.f \
@@ -52,17 +53,15 @@ triple.f derqp3.f difsy3.f erel3.f extend.f qpmod3.f stabl3.f \
 stablz.f start3.f subsys.f tperi.f trans3.f \
 quad.f derqp4.f difsy4.f endreg.f erel4.f ichain.f newreg.f newsys.f \
 qpmod4.f rchain.f rsort.f stabl4.f start4.f status.f trans4.f \
-cfuncs.f chain.f chstab.f const.f cstab2.f cstab3.f cstab4.f cstab5.f \
-derqp.f difsy1.f erel.f hpsort.f inclin.f invert.f ksphys.f physks.f \
-qforce.f qpmod.f r2sort.f recoil.f redraw.f select.f slow.f stablc.f \
-swcond.f switch.f transk.f transq.f transx.f vector.f xtf.f xtrnlu.f \
-ycopy.f ysave.f \
-absorb.f chaos2.f chdata.f chfind.f chfirr.f chinit.f chlist.f chmod.f \
-chpert.f chpot.f chterm.f expel2.f fchain.f ghost.f giant2.f kcpert.f \
-reduce.f reinit.f renew.f setsys.f tchain.f xcpred.f xtpert.f \
+jpred.f cxvpred.f fpcorr2.f repair.f \
+chain.f const.f erel.f hpsort.f inclin.f ksphys.f physks.f \
+absorb.f chdata.f chfind.f chfirr.f chinit.f chlist.f chmod.f \
+chpert.f chpot.f chterm.f expel2.f fchain.f ghost.f \
+reduce.f reinit.f setsys.f tchain.f xcpred.f xtpert.f \
 gpucor.f gpunb.f gpupot.f nbintp.f cnbint.f energy2.f phicor.f \
-check3.f cmfirr2.f fpoly2a.f wtime.f checkl2.f \
-jpred.f cxvpred.f fpcorr2.f ffdot.f repair.f
+check3.f cmfirr2.f fpoly2a.f wtime.f \
+pnpert.f xtpert2.f bhstat.f bhstab.f emax1.f chainevolve.f checkl2.f \
+grbin.f inject.f infall.f decorr.f cpertx.f cpertj.f kcpert.f
 
 OBJECTS = $(SOURCE:.f=.o)
 OBJECTS += gpuirr.o
