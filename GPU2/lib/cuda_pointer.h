@@ -11,9 +11,9 @@ struct cudaPointer{
 		host_pointer = NULL;
 		size = 0;
 	}
-	~cudaPointer(){
-		// free();
-	}
+//        ~cudaPointer(){
+//         free();
+//      }
 	void allocate(int _size){
 		size = _size;
 		void *p;
