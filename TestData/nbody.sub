@@ -1,0 +1,12 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=1,walltime=10:00:00
+#PBS -N nbody_test
+#PBS -q serial
+#PBS -j oe
+#PBS -A UT-NTNL0078
+#PBS -M scamicha@indiana.edu
+#PBS -m abe
+
+cd $PBS_O_WORKDIR
+
+./launch.sh
