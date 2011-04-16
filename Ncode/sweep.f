@@ -12,7 +12,7 @@
       ZMX = 100.0*BODYM
       I = IFIRST - 1
     1 I = I + 1
-      IF (I.GE.N-1) GO TO 30
+      IF (I.GE.N.OR.NAME(I).LE.0) GO TO 30
       IF (BODY(I).GT.ZMX) GO TO 2
       IF (STEP(I).GT.DTCL.OR.BODY(I).EQ.0.0D0) GO TO 1
     2 CONTINUE
@@ -33,7 +33,7 @@
           END IF
    10 CONTINUE
 *       Skip any close c.m./chain body (small STEP treated by IMPACT).
-      IF (JMIN.GT.N.OR.NAME(JMIN).EQ.0) GO TO 1
+      IF (JMIN.GT.N.OR.NAME(JMIN).LE.0) GO TO 1
 *
 *       Form inverse semi-major axis.
       VIJ2 = 0.0
@@ -84,3 +84,4 @@
    30 RETURN
 *
       END
+

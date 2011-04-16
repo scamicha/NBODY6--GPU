@@ -38,7 +38,7 @@
       END IF
 *
 *       Check option for reading initial conditions from input file.
-      IF (KZ(22).GE.2) THEN
+      IF (KZ(22).GE.2.OR.KZ(22).EQ.-1) THEN
           ZMASS = 0.0
           DO 5 I = 1,N
               READ (10,*)  BODY(I), (X(K,I),K=1,3), (XDOT(K,I),K=1,3)
