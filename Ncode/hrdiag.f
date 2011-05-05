@@ -32,7 +32,7 @@
       real*8 mxns,mxns0,mxns1
       parameter(mxns0=1.8d0,mxns1=3.d0)
       real*8 mass0,mt0,mtc
-* 
+*
       real*8 thook,thg,tbagb,tau,tloop,taul,tauh,tau1,tau2,dtau,texp
       real*8 lx,ly,dell,alpha,beta,neta
       real*8 rx,ry,delr,rzams,rtms,gamma,rmin,taumin,rg
@@ -69,7 +69,7 @@
 *       MC      Core mass.
 *       ---------------------------------------------------------------------
 *
-* Set maximum NS mass depending on which NS mass prescription is used. 
+* Set maximum NS mass depending on which NS mass prescription is used.
       mxns = mxns0
       if(nsflag.eq.1) mxns = mxns1
 *
@@ -138,8 +138,8 @@
 *
             if(mass.lt.(zpars(1)-0.3d0))then
                kw = 0
-* This following is given by Chris for low mass MS stars which will be 
-* substantially degenerate. We need the Hydrogen abundance, X, which we 
+* This following is given by Chris for low mass MS stars which will be
+* substantially degenerate. We need the Hydrogen abundance, X, which we
 * calculate from Z assuming that the helium abundance, Y, is calculated
 * according to Y = 0.24 + 2*Z
                rdgen = 0.0258d0*((1.d0+zpars(11))**(5.d0/3.d0))*
@@ -149,7 +149,7 @@
                kw = 1
             endif
 *
-         else 
+         else
 *
 *           Star is on the HG
 *
@@ -356,7 +356,7 @@
                lum = lx*(ly/lx)**(tau**texp)
             endif
          endif
-* 
+*
 * Test whether core mass exceeds total mass.
 *
          if(mc.ge.mt)then
@@ -423,7 +423,7 @@
             mcy = mc
             mc = mc - lambda*(mcy-mcx)
             mcx = mc
-            mcmax = MIN(mt,mcmax)   
+            mcmax = MIN(mt,mcmax)  
          endif
          r = ragbf(mt,lum,zpars(2))
          rg = r
@@ -437,12 +437,12 @@
             if(mc.lt.mch)then
                mt = mc
                if(mcbagb.lt.1.6d0)then
-*     
+*    
 * Zero-age Carbon/Oxygen White Dwarf
 *
                   kw = 11
                else
-*     
+*    
 * Zero-age Oxygen/Neon White Dwarf
 *
                   kw = 12
@@ -463,19 +463,27 @@
                   if(nsflag.eq.0)then
                      mt = 1.17d0 + 0.09d0*mc
                   elseif(nsflag.ge.1)then
-*
-* Use NS/BH mass given by Belczynski et al. 2002, ApJ, 572, 407.
-*
-                     if(mc.lt.2.5d0)then
-                        mcx = 0.161767d0*mc + 1.067055d0
+c*
+c* Use NS/BH mass given by Belczynski et al. 2002, ApJ, 572, 407.
+c*
+c                     if(mc.lt.2.5d0)then
+c                        mcx = 0.161767d0*mc + 1.067055d0
+c                     else
+c                        mcx = 0.314154d0*mc + 0.686088d0
+c                     endif
+c                     if(mc.le.5.d0)then
+c                        mt = mcx
+c                     elseif(mc.lt.7.6d0)then
+c                        mt = mcx + (mc - 5.d0)*(mt - mcx)/2.6d0
+c                     endif
+* New formula for remnant masses from Eldridge & Tout (MNRAS, 2004).
+                     if(mc.lt.6d0)then
+                        mcx=1.44d0
                      else
-                        mcx = 0.314154d0*mc + 0.686088d0
+                        mcx=1.4512017*mc -6.5913737d-3*mc*mc -6.1073371
                      endif
-                     if(mc.le.5.d0)then
-                        mt = mcx
-                     elseif(mc.lt.7.6d0)then
-                        mt = mcx + (mc - 5.d0)*(mt - mcx)/2.6d0
-                     endif
+                     mt=mcx
+
                   endif
                   mc = mt
                   if(mt.le.mxns)then
@@ -495,7 +503,7 @@
 *
       endif
 *
- 90   continue
+90   continue
 *
       if(kw.ge.7.and.kw.le.9)then
 *
@@ -539,13 +547,13 @@
                mc = mcmax
                if(mc.lt.mch)then
                   if(mass.lt.1.6d0)then
-*     
+*    
 * Zero-age Carbon/Oxygen White Dwarf
 *
                      mt = MAX(mc,(mc+0.31d0)/1.45d0)
                      kw = 11
                   else
-*     
+*    
 * Zero-age Oxygen/Neon White Dwarf
 *
                      mt = mc

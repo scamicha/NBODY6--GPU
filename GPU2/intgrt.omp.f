@@ -12,7 +12,8 @@
       COMMON/PREDICT/ TPRED(NMAX)
       PARAMETER (NIMAX=1024,NPMAX=16)
       REAL*8   H2I(NIMAX),XI(3,NIMAX),VI(3,NIMAX),GPUACC(3,NIMAX),
-     &         GPUJRK(3,NIMAX),GPUPHI(NIMAX),GF(3,NMAX),GFD(3,NMAX)
+     &         GPUJRK(3,NIMAX),GPUPHI(NIMAX),GF(3,NMAX),GFD(3,NMAX),
+     &         DTR(NIMAX)
       INTEGER  NXTLST(NMAX),LISTQ(NMAX),NL(20)
       INTEGER  IRR(NMAX),IREG(NMAX),LISTGP(LMAX,NIMAX)
       LOGICAL LOOP,LSTEPM
@@ -33,9 +34,9 @@
 *
 *       Open the GPU libraries on each new run (note nnbmax = NN is printed).
       IF (ISTART.EQ.0) THEN
-          NN = N
+          NN = NTOT + 10
           CALL GPUNB_OPEN(NN)
-*       Set larger value for GPUIRR (note further increase of NTOT).
+*       Set larger value for GPUIRR (note further possible increase of NTOT).
           NNN = NTOT + 10
           IF (KZ(8).EQ.1.OR.KZ(8).GE.3) NNN = NNN + NBIN0
           CALL GPUIRR_OPEN(NNN,LMAX)
@@ -62,7 +63,7 @@
 *       Treat case of new KS.
           I = ICOMP0
 *       Avoid updating unchanged locations (note ICOMP0 & JCOMP0).
- 1000     IF (I.GE.IFIRST) THEN
+1000     IF (I.GE.IFIRST) THEN
               TNEW(I) = T0(I) + STEP(I)
               TPRED(I) = -1.0
               CALL JPRED(I)
@@ -73,13 +74,13 @@
                   RIJ2 = 0.0
                   DO 1005 K = 1,3
                       RIJ2 = RIJ2 + (X(K,I) - X(K,J))**2
- 1005             CONTINUE
+1005             CONTINUE
                   DX = MAX(RS(I),RS(J))
 *       Include a 10% edge effect (NB! assumes RIJ < RS(I) criterion).
 *                 IF (RIJ2.LT.1.2*DX**2) THEN
                       CALL GPUIRR_SET_LIST(J,LIST(1,J))
 *                 END IF
- 1010         CONTINUE
+1010         CONTINUE
           END IF
 *       Select second component or new c.m. (not connected with ICOMP0).
           IF (I.EQ.ICOMP0) THEN
@@ -96,7 +97,7 @@
       ELSE IF (IPHASE.EQ.2) THEN
           I1 = IFIRST
           I2 = I1 + 1
- 1015     DO 1030 I = I1,I2
+1015     DO 1030 I = I1,I2
               TNEW(I) = T0(I) + STEP(I)
               TPRED(I) = -1.0
               CALL JPRED(I)
@@ -107,13 +108,13 @@
                   RIJ2 = 0.0
                   DO 1020 K = 1,3
                       RIJ2 = RIJ2 + (X(K,I) - X(K,J))**2
- 1020             CONTINUE
+1020             CONTINUE
                   DX = MAX(RS(I),RS(J))
                   IF (RIJ2.LT.1.2*DX**2) THEN
                       CALL GPUIRR_SET_LIST(J,LIST(1,J))
                   END IF
- 1025         CONTINUE
- 1030     CONTINUE
+1025         CONTINUE
+1030     CONTINUE
           IF (I1.EQ.IFIRST.AND.KSPAIR.LE.NPAIRS) THEN
               I1 = N + KSPAIR
               I2 = NTOT
@@ -137,7 +138,7 @@
               TPRED(I) = -1.0
               CALL JPRED(I)
 *       Note that this prediction is strictly not necessary.
- 1040     CONTINUE
+1040     CONTINUE
 !$omp end parallel do
 *       Prescribe level search on return, except for new and terminated KS.
           LOOP = .TRUE.
@@ -157,7 +158,7 @@
           IF (DTM.EQ.DTK(L)) THEN
               LQS = L
           END IF
- 1050 CONTINUE
+1050 CONTINUE
 *
 *       Specify upper level for optimized membership and reset IQ.
       LQB = LQS - 8
@@ -307,7 +308,7 @@
               IRR(L) = 0
           END IF
    28 CONTINUE
-* 
+*
 *       Decide between predicting < NPACT active (NFR = 0) or all particles.
       IF (NXTLEN.LE.NPACT.AND.NFR.EQ.0) THEN
 *
@@ -352,7 +353,8 @@
       CALL GPUIRR_FIRR_VEC(NXTLEN,NXTLST,GF,GFD)
 *
 *       Choose between standard and parallel irregular integration.
-      IF (NXTLEN.LE.NPMAX) THEN
+*     IF (NXTLEN.LE.NPMAX) THEN
+      IF (NXTLEN.LE.NMAX) THEN
 *
 *       Obtain all irregular forces on the block sequentially.
       DO 48 II = 1,NXTLEN
@@ -410,11 +412,12 @@
       JNEXT = 0
       DO 55 II = 1,NFR,NIMAX
   550     NI = MIN(NFR-JNEXT,NIMAX)
-*       Copy neighbour radius and state vector for each block.
+*       Copy neighbour radius, STEPR and state vector for each block.
 !$omp parallel do private(I, K)
           DO 52 LL = 1,NI
               I = IREG(JNEXT+LL)
               H2I(LL) = RS(I)**2
+              DTR(LL) = STEPR(I)
               DO 51 K = 1,3
                   XI(K,LL) = X(K,I)
                   VI(K,LL) = XDOT(K,I)
@@ -423,8 +426,8 @@
 !$omp end parallel do
 *
 *       Evaluate forces, derivatives and neighbour lists for next block.
-          CALL GPUNB_REGF(NI,H2I,XI,VI,GPUACC,GPUJRK,GPUPHI,LMAX,
-     &                                               NNBMAX,LISTGP)
+          CALL GPUNB_REGF(NI,H2I,DTR,XI,VI,GPUACC,GPUJRK,GPUPHI,LMAX,
+     &                                                   NNBMAX,LISTGP)
 *       Copy neighbour list after overflow check.
           DO 54 LL = 1,NI
               I = IREG(JNEXT + LL)
@@ -459,7 +462,7 @@
 *
 *       Evaluate irregular forces by vector procedure.
           CALL GPUIRR_FIRR_VEC(NI,IREG(II),GF(1,1),GFD(1,1))
-*!$omp parallel do private(I, LX)
+!$omp parallel do private(I, LX)
           DO 57 LL = 1,NI
               I = IREG(JNEXT+LL)
 *       Obtain new irregular force (scalar, old) and perform correction.
@@ -474,7 +477,7 @@
 *       Note possible errors in the potential when using predicted values.
 *             POT = POT + BODY(I)*GPUPHI(LL)
    57     CONTINUE
-*!$omp end parallel do
+!$omp end parallel do
           JNEXT = JNEXT + NI
    55 CONTINUE
 *

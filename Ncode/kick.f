@@ -37,6 +37,9 @@
           ZM2 = BODY(I1+1)*SMU
           EB = BODY(I1)*BODY(I1+1)/BODY(N+IPAIR)*H(IPAIR)
           RI = R(IPAIR)
+*       Skip on #25 = 0/1 for consistent net WD modification of EKICK.
+          IF ((KW.LT.13.AND.KZ(25).EQ.0).OR.
+     &        (KW.EQ.12.AND.KZ(25).NE.2)) GO TO 30
 *       Sum whole binding energy (used by BINOUT for net change).
           EKICK = EKICK + EB
           EGRAV = EGRAV + EB

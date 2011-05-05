@@ -19,10 +19,13 @@
 *       Include velocity kick in case of new WD, NS, BH or massless SN.
       IF (KW.GE.10.AND.KW.LE.15) THEN
           IKICK = .TRUE.
+*       Ensure WD kicks are treated consistently (cf. define.f and #25).
+          IF ((KW.EQ.10.OR.KW.EQ.11).AND.KZ(25).NE.1) IKICK = .FALSE.
+          IF (KW.EQ.12.AND.KZ(25).NE.2) IKICK = .FALSE.
 *       Distinguish between single star (first time only) and binary.
-          IF (I.LE.N.AND.KW.NE.KSTAR(I)) THEN
+          IF (I.LE.N.AND.KW.NE.KSTAR(I).AND.IKICK) THEN
               CALL KICK(I,1,KW)
-          ELSE IF (I.GT.N) THEN
+          ELSE IF (I.GT.N.AND.IKICK) THEN
               IPAIR = I - N
               CALL KICK(IPAIR,0,KW)
           END IF

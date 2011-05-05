@@ -22,10 +22,10 @@
       if(kw.ge.2.and.kw.le.9)then
 * 'Reimers' mass loss
          dml = neta*4.0d-13*r*lum/mt
-* Check for any tidally enhanced mass loss in binary systems (optional): 
+* Check for any tidally enhanced mass loss in binary systems (optional):
 * see Tout & Eggleton, MNRAS, 1988, 231, 823.  
          if(rl.gt.0.d0) dml = dml*(1.d0 + bwind*(MIN(0.5d0,(r/rl)))**6)
-* Apply mass loss of Vassiliadis & Wood, ApJ, 1993, 413, 641, 
+* Apply mass loss of Vassiliadis & Wood, ApJ, 1993, 413, 641,
 * for high pulsation periods on AGB.
          if(kw.eq.5.or.kw.eq.6)then
             p0 = -2.07d0 - 0.9d0*log10(mt) + 1.94d0*log10(r)
