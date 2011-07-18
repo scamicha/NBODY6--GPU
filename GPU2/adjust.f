@@ -263,6 +263,8 @@
       IF ((KZ(14).EQ.3.OR.KZ(14).EQ.4).AND.ZKIN.GT.0.0) THEN
           TCR = 2.0*RSCALE/SQRT(2.0*ZKIN/ZMASS)
       END IF
+*       Update maximum NNB used by GPU & GPUCOR (without affecting average).
+      NBMAX = MIN(NNBMAX+100,LMAX-5)
 *
 *       Print energy diagnostics & KS parameters.
       ICR = TTOT/TCR
@@ -323,9 +325,9 @@
 *       Allow a gradual decrease of NNBMAX due to escaper removal.
       IF (KZ(40).EQ.3) THEN
           NNBMAX = NBZERO*SQRT(FLOAT(N)/FLOAT(NZERO))
-*       Note revised definition of ZNBMAX & ZNBMIN to reduce overflows.
-          ZNBMAX = 0.8*NNBMAX
-          ZNBMIN = MAX(0.1*NNBMAX,1.0)
+*       Restore standard coeficcients because of new overflow procedure.
+          ZNBMAX = 0.9*NNBMAX
+          ZNBMIN = MAX(0.2*NNBMAX,1.0)
       END IF
 *
 *       Include optional fine-tuning of neighbour number (#40 >= 2).
@@ -429,3 +431,4 @@
    70 RETURN
 *
       END
+

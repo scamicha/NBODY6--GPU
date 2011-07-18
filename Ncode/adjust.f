@@ -13,8 +13,8 @@
 *       Predict X & XDOT for all particles (except unperturbed pairs).
       CALL XVPRED(IFIRST,NTOT)
 *
-*       Obtain the total energy at current time using GPU for potentials.
-      CALL ENERGY2
+*       Obtain the total energy at current time (resolve all KS pairs).
+      CALL ENERGY
 *
 *       Initialize c.m. terms.
       DO 10 K = 1,3
@@ -96,9 +96,6 @@
           DELTA1 = DE
           DETOT = DETOT + DE
           DE = DE/MAX(ZKIN,ABS(E(3)))
-          IF (ABS(DE).GT.100.0*ABS(DELTA1)) THEN
-              DE = 100.0*DELTA1
-          END IF
 *       Save sum of relative energy error for main output and accumulate DE.
           ERROR = ERROR + DE
           ERRTOT = ERRTOT + DE
@@ -157,8 +154,8 @@
               EDISK = EDISK - 0.5*BODY(I)/SEMI
    40     CONTINUE
           DISP = SQRT(DISP2/FLOAT(N-2))
-          WRITE (35,41)  TTOT, DISP, EDISK
-   41     FORMAT (' ',F8.1,1P,E10.2,E12.4)
+          WRITE (35,42)  TTOT, DISP, EDISK
+   42     FORMAT (' ',F8.1,1P,E10.2,E12.4)
       END IF
 *
 *       Check optional sorting of Lagrangian radii & half-mass radius.
@@ -200,7 +197,6 @@
               ECLOSE = 0.5*ECLOSE/Q
           END IF
           ECLOSE = MIN(ECLOSE,1.0D0)
-*       Initialize flag for increasing RMIN (used with #16 > 1).
           KSMAG = 0
       END IF
 *
@@ -219,30 +215,13 @@
       RMIN2 = RMIN**2
       RMIN22 = 4.0*RMIN2
       EBH = -0.5*BODYM*ECLOSE
-*       Check resetting most frequent counters.
-      IF (NSTEPI.GT.2000000000.OR.NSTEPI.LT.0) THEN
-          NSTEPI = 0
-          NIRECT = NIRECT + 1
-      END IF
-      IF (NBFLUX.GT.2000000000.OR.NBFLUX.LT.0) THEN
-          NBFLUX = 0
-          NBRECT = NBRECT + 1
-      END IF
       IF (TIME.LE.0.0D0) THEN
           STEPJ = 0.01*(60000.0/FLOAT(N))**0.3333
           IF (DMOD(SMAX,DTK(10)).NE.0.0D0) THEN
-              WRITE (6,42)  SMAX, SMAX/DTK(10)
-   42         FORMAT (' FATAL ERROR!    SMAX SMAX/DTK(10) ',1P,2E10.2)
+              WRITE (6,43)  SMAX, SMAX/DTK(10)
+   43         FORMAT (' FATAL ERROR!    SMAX SMAX/DTK(10) ',1P,2E10.2)
               STOP
           END IF
-*       Ensure no steps exceed maximum (large step could stay unchanged).
-          DO 44 I = IFIRST,NTOT
-              IF (STEPR(I).GT.SMAX) THEN
-                  STEPR(I) = SMAX
-                  STEP(I) = MIN(STEP(I),SMAX)
-                  TNEW(I) = STEP(I)
-              END IF
-   44     CONTINUE
       END IF
 *       Adopt 2*RSMIN for neighbour sphere volume factor in routine REGINT.
       RSFAC = MAX(25.0/TCR,3.0D0*VC/(2.0D0*RSMIN))
@@ -252,8 +231,8 @@
           ALPHA = FLOAT(NNBMAX)*SQRT(0.08D0*RSCALE**3/FLOAT(N-NPAIRS))
       END IF
 *       Include optional stabilization to increase neighbour number.
-      IF (KZ(40).EQ.1.AND.FLOAT(NNB).LT.0.25*NNBMAX) THEN
-          FAC = 1.0 + (0.25*NNBMAX - NNB)/(0.25*FLOAT(NNBMAX))
+      IF (KZ(40).EQ.1.AND.FLOAT(NNB).LT.0.5*NNBMAX) THEN
+          FAC = 1.0 + (0.5*NNBMAX - NNB)/(0.5*FLOAT(NNBMAX))
           ALPHA = FAC*ALPHA
       END IF
 *
@@ -263,21 +242,13 @@
       IF ((KZ(14).EQ.3.OR.KZ(14).EQ.4).AND.ZKIN.GT.0.0) THEN
           TCR = 2.0*RSCALE/SQRT(2.0*ZKIN/ZMASS)
       END IF
-*       Update maximum NNB used by GPU & GPUCOR (without affecting average).
-      NBMAX = MIN(NNBMAX+100,LMAX-5)
 *
 *       Print energy diagnostics & KS parameters.
       ICR = TTOT/TCR
-*       Obtain elapsed wall clock time (hours, minutes & seconds).
-      CALL WTIME(IHOUR,IMIN,ISEC)
-*       Save accumulated wall-clock time in seconds.
-      SECS = 3600.0*IHOUR + 60.0*IMIN + ISEC
-      WRITE (6,45)  TTOT, Q, DE, BE(3), RMIN, DTMIN, ICR, DELTA1, E(3),
-     &              DETOT, IHOUR, IMIN, ISEC
+      WRITE (6,45)  TTOT, Q, DE, BE(3), RMIN, DTMIN, ICR, DELTA1, E(3)
    45 FORMAT (/,' ADJUST:  TIME =',F8.2,'  Q =',F5.2,'  DE =',1P,E10.2,
      &          '  E =',0P,F10.6,'  RMIN =',1P,E8.1,'  DTMIN =',E8.1,
-     &          '  TC =',0P,I5,'  DELTA =',1P,E9.1,'  E(3) =',0P,F10.6,
-     &          '  DETOT =',F10.6,'  WTIME =',I4,2I3)
+     &          '  TC =',0P,I5,'  DELTA =',1P,E9.1,'  E(3) =',0P,F10.6)
       CALL FLUSH(6)
 *
 *       Perform automatic error control (RETURN on restart with KZ(2) > 1).
@@ -287,11 +258,6 @@
 *       Check for escaper removal.
       IF (KZ(23).GT.0) THEN
           CALL ESCAPE
-      END IF
-*
-*       Include optional search of unstable triples.
-      IF (KZ(18).GE.1) THEN
-          CALL CHECK3
       END IF
 *
 *       Check correction for c.m. displacements.
@@ -325,7 +291,6 @@
 *       Allow a gradual decrease of NNBMAX due to escaper removal.
       IF (KZ(40).EQ.3) THEN
           NNBMAX = NBZERO*SQRT(FLOAT(N)/FLOAT(NZERO))
-*       Restore standard coeficcients because of new overflow procedure.
           ZNBMAX = 0.9*NNBMAX
           ZNBMIN = MAX(0.2*NNBMAX,1.0)
       END IF
@@ -344,12 +309,6 @@
       IF (TIME.GE.TNEXT) THEN
           CALL OUTPUT
           IOUT = 1
-*       Check optional overflow diagnostics (#33 > 1: current & accumulated).
-          IF (KZ(33).GT.1) THEN
-              WRITE (6,55)  NOFL(1), NOFL(2), ALPHA, NNB, NNBMAX
-   55         FORMAT (' #9  OVERFLOWS  ',I5,I9,'   ALPHA =',F6.2,
-     &                                 '  <NNB> =',I4,'  NNBMAX =',I4)
-          END IF
       END IF
 *
 *       Include optional diagnostics for the hardest binary below ECLOSE.
@@ -380,7 +339,7 @@
       END IF
 *
 *       Include optional KS reg of binaries outside standard criterion.
-      IF (KZ(8).GT.0.AND.N.GE.5000.AND.DMOD(TIME,DTK(10)).EQ.0.0D0) THEN
+      IF (KZ(8).GT.0.AND.DMOD(TIME,DTK(10)).EQ.0.0D0) THEN
 *       Note DMOD condition needed for CALL KSREG and CALL STEPS.
           DTCL = 30.0*DTMIN
           RCL = 10.0*RMIN
@@ -401,30 +360,18 @@
       CALL CPUTIM(TCOMP)
       CPUTOT = CPUTOT + TCOMP - CPU0
       CPU0 = TCOMP
-      WTOT = WTOT + SECS - WTOT0
-      WTOT0 = SECS
 *
 *       Save COMMON after energy check (skip TRIPLE, QUAD, CHAIN).
       TDUMP = TIME
       IF (KZ(2).GE.1.AND.NSUB.EQ.0) CALL MYDUMP(1,2)
-*       Check COMMON save on fort.1 at main output (#1 = 2).
-      IF (KZ(1).EQ.2.AND.NSUB.EQ.0) THEN
-          IF (IOUT.GT.0) CALL MYDUMP(1,1)
-      END IF
 *
-*       Check termination criteria (TIME > TCRIT, N <= NCRIT & next TADJ).
+*       Check termination criteria (TIME > TCRIT & N <= NCRIT).
       IF (TTOT.GE.TCRIT.OR.N.LE.NCRIT.OR.TTOT+DTADJ.GT.TCRIT) THEN
 *       Terminate after optional COMMON save.
-          WT = WTOT/3600.0
-          WRITE (6,65)  TTOT, CPUTOT/60.0, ERRTOT, DETOT, WT
-   65     FORMAT (//,9X,'END RUN',3X,'TIME =',F8.1,'  CPUTOT =',F7.1,
-     &                  '  ERRTOT =',F10.6,'  DETOT =',F10.6,
-     &                  '  WTOT =',F7.1)
+          WRITE (6,65)  TTOT, CPUTOT/60.0, ERRTOT, DETOT
+   65     FORMAT (//,9X,'END RUN',3X,'TIME =',F7.1,'  CPUTOT =',F7.1,
+     &                  '  ERRTOT =',F10.6,'  DETOT =',F10.6)
           IF (KZ(1).GT.0.AND.NSUB.EQ.0) CALL MYDUMP(1,1)
-*
-*       Close the libraries and stop.
-          CALL GPUNB_CLOSE
-          CALL GPUIRR_CLOSE
           STOP
       END IF
 *
