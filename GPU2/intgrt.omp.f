@@ -43,11 +43,11 @@
           ISTART = 1
 *       Define parameter for predicting active particles in library.
           IF (N.LE.5000) THEN
-              NPACT = 50
-          ELSE IF (N.LE.50000) THEN
               NPACT = 75
-          ELSE IF (N.LE.100000) THEN
+          ELSE IF (N.LE.50000) THEN
               NPACT = 100
+          ELSE IF (N.LE.100000) THEN
+              NPACT = 150
           ELSE
               NPACT = 200
           END IF
@@ -353,8 +353,7 @@
       CALL GPUIRR_FIRR_VEC(NXTLEN,NXTLST,GF,GFD)
 *
 *       Choose between standard and parallel irregular integration.
-*     IF (NXTLEN.LE.NPMAX) THEN
-      IF (NXTLEN.LE.NMAX) THEN
+      IF (NXTLEN.LE.NPMAX) THEN
 *
 *       Obtain all irregular forces on the block sequentially.
       DO 48 II = 1,NXTLEN
@@ -404,11 +403,12 @@
 *     CPRED = CPRED + (TT4 - TT3)
 *     IF (DMOD(TIME,2.0D0).EQ.0.0D0) WRITE (6,540)  CPRED
 * 540 FORMAT (' TIMING CXVPRED  ',1P,E10.2)
-*       Send all single particles and c.m.'s to the GPU.
+*       Send all single particles and c.m. bodies to the GPU.
       CALL GPUNB_SEND(NN,BODY(IFIRST),X(1,IFIRST),XDOT(1,IFIRST))
 *
 *       Perform regular force loop.
       NOFL(1) = 0
+      NOFL2 = 0
       JNEXT = 0
       DO 55 II = 1,NFR,NIMAX
   550     NI = MIN(NFR-JNEXT,NIMAX)
@@ -427,21 +427,30 @@
 *
 *       Evaluate forces, derivatives and neighbour lists for next block.
           CALL GPUNB_REGF(NI,H2I,DTR,XI,VI,GPUACC,GPUJRK,GPUPHI,LMAX,
-     &                                                   NNBMAX,LISTGP)
+     &                                                   NBMAX,LISTGP)
 *       Copy neighbour list after overflow check.
           DO 54 LL = 1,NI
               I = IREG(JNEXT + LL)
               NNB = LISTGP(1,LL)
-*       Repeat the last block with reduced RS(I) on NNB < 0.
+*       Repeat last block with reduced RS(I) on NNB < 0 (at end of loop).
               IF (NNB.LT.0) THEN
-                  WRITE (41,556)  NSTEPR, NAME(I), LIST(1,I), RS(I)
-  556             FORMAT (' OVERFLOW!   #R NAME NB0 RS ',I11,I6,I4,F8.2)
+                  RI2 = (X(1,I)-RDENS(1))**2 + (X(2,I)-RDENS(2))**2 +
+     &                                         (X(3,I)-RDENS(3))**2
+                  WRITE (41,556)  NSTEPR, NAME(I), LIST(1,I), NNB,
+     &                            RS(I), SQRT(RI2)
+  556             FORMAT (' OVERFLOW!   #R NAME NB0 NB RS ri ',
+     &                                  I11,I6,2I5,2F8.3)
                   CALL FLUSH(41)
                   NOFL(1) = NOFL(1) + 1
                   RS(I) = 0.9*RS(I)
-                  GO TO 550
+                  H2I(LL) = RS(I)**2
+                  NOFL2 = NOFL2 + 1
               END IF
    54     CONTINUE
+          IF (NOFL2.GT.0) THEN
+              NOFL2 = 0
+              GO TO 550
+           END IF
 !$omp parallel do private(I, ITEMP, NNB, L1, L)
           DO 56 LL = 1,NI
               I = IREG(JNEXT + LL)

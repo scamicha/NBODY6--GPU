@@ -10,7 +10,7 @@
 *       Define GM & PC in cgs units and #AU in pc (2008 IAU values).
       GM = 6.6743D-08*1.9884D+33
       PC = 3.0856776D+18
-      AU = PC/1.4959787D+12
+      AU = PC/1.4959787D+13  ! bug fix from D+12 4/7/11 (was OK in 2009).
 *
 *       Form scaling factors for binary periods A*SQRT(A/M) to yrs and days.
       YRS = (RBAR*AU)**1.5/SQRT(ZMBAR)
@@ -59,3 +59,4 @@
       RETURN
 *
       END
+

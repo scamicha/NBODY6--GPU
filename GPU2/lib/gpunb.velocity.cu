@@ -15,7 +15,7 @@
 #define NYREDUCE  8
 
 #define NNB_PER_BLOCK 256 // NNB per block, must be power of 2
-#define NB_BUF_SIZE (1<<18)
+#define NB_BUF_SIZE (1<<20)
 // #define NNB_MAX       384 // total NNB at reduced
 
 #define MAX_CPU 8
@@ -633,10 +633,16 @@ void GPUNB_regf(
 		int nnb = 0;
 		for(int id=0; id<numGPU; id++){
 			const int nnb_part = ftot[id][i].nnb;
-			if(nnb_part < 0) overflow = true;
+			if(nnb_part < 0){
+				overflow = true;
+				fprintf(stderr, "!!!overflow : i=%d, id=%d, nnb_part=%d\n", i, id, nnb_part);
+			}
 			// assert(!overflow);
 			nnb += nnb_part;
-			if(nnb > nbmax) overflow = true;
+			if(nnb > nbmax){
+				overflow = true;
+				fprintf(stderr, "!!!overflow : i=%d, id=%d, nnb_tot =%d, nnbmax=%d\n", i, id, nnb, nbmax);
+			}
 			// assert(!overflow);
 			if(!overflow){
 				const int off = nboff[id][i];
@@ -646,7 +652,8 @@ void GPUNB_regf(
 			}
 		}
 		if(overflow){
-			*nnbp = -1;
+			// *nnbp = -1;
+			*nnbp = nnb ? -abs(nnb) : -9999;
 		}else{
 			*nnbp = nnb;
 		}
@@ -686,3 +693,5 @@ extern "C" {
 		GPUNB_regf(*ni, h2, dtr, xi, vi, acc, jrk, pot, *lmax, *nbmax, list);
 	}
 }
+
+

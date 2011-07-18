@@ -106,7 +106,7 @@
                   END IF
    15         CONTINUE
           END IF
-      END IF 
+      END IF
 *
 *       Check optional interstellar clouds.
    20 IF (KZ(13).GT.0) THEN
@@ -136,6 +136,7 @@
                   DPX = FDR(K) - FDX(K)
                   WDOT = WDOT + XIDOT(K)*PX
                   W2DOT = W2DOT + (FREG(K) + FIRR(K))*PX + XIDOT(K)*DPX
+*       Suppress incomplete third-order term which gives worse result.
 *                 W3DOT = W3DOT + 2.0*(FREG(K) + FIRR(K))*DPX +
 *    &                            (FDR(K) + FD(K))*PX
    24         CONTINUE
@@ -157,10 +158,12 @@
               FD(K) = FD(K) - (XIDOT(K) - RDOT*XI(K))*FIJ
    25     CONTINUE
 *       Modify neighbour sphere gradually but allow encounter detection.
-          IF (RDOT.GT.0.0) THEN
+          IF (RDOT.GT.0.0.AND.RI2.GT.RH2) THEN
               RS(I) = MAX(0.75*RS(I),0.1*RSCALE)
           ELSE
               RS(I) = 1.1*RS(I)
+*       Increase RS significantly in the inner region.
+              IF (RS(I)**2.LT.0.01*RH2) RS(I) = 2.0*RS(I)
           END IF
           NBVOID = NBVOID + 1
           IRSKIP = 1
@@ -169,11 +172,11 @@
 *         GO TO 1
       END IF
 *
-*       Restrict neighbour number < NNBMAX to permit one normal addition.
-      IF (NNB.LT.NNBMAX) GO TO 40
+*       Restrict neighbour number < NBMAX to permit one normal addition.
+      IF (NNB.LT.NBMAX) GO TO 40
 *
 *       Reduce search radius by cube root of 90 % volume factor.
-   30 NNB2 = 0.9*NNBMAX
+   30 NNB2 = 0.9*NBMAX
       NBSKIP = 1
       A1 = FLOAT(NNB2)/FLOAT(NNB)
       IF (RS(I).GT.5.0*RSCALE) THEN
@@ -184,7 +187,7 @@
       RCRIT2 = 1.59*RS2
       RS(I) = SQRT(RS2)
       NNB1 = 0
-*   
+*  
       DO 35 L = 1,NNB
           J = KLIST(L+1)
           IF (L + NNB2.GT.NNB + NNB1) GO TO 32
@@ -232,11 +235,11 @@
       NNB = NNB1
       NBFULL = NBFULL + 1
 *       See whether to reduce NNB further.
-      IF (NNB.GE.NNBMAX) GO TO 30
+      IF (NNB.GE.NBMAX) GO TO 30
 *
 *       Stabilize NNB between ZNBMIN & ZNBMAX by square root of contrast.
    40 A3 = ALPHA*SQRT(FLOAT(NNB)*RS(I))/RS2
-      A3 = MIN(A3,ZNBMAX) 
+      A3 = MIN(A3,ZNBMAX)
       NBP = A3
 *       Reduce predicted membership slowly outside half-mass radius.
       IF (RI2.GT.RH2) THEN
@@ -289,6 +292,11 @@
           END IF
 *       Skip modification for small changes (avoids oscillations in RS).
           IF (ABS(A1 - 1.0D0).GT.0.003) THEN
+*       Restrict change in RS within 25 % of RI using approx (RS-RI)*(RS+RI).
+              IF (RS(I)**2.GT.RI2.AND.RS(I)**2.LT.2.0*RI2.AND.
+     &            NNB.GT.5) THEN
+                  A1 = SQRT(A1)
+              END IF
               RS(I) = A1*RS(I)
           END IF
 *       Employ extra reduction for inward motion and large membership.
@@ -301,7 +309,7 @@
       END IF
 *
 *       Calculate the radial velocity with respect to at most 3 neighbours.
-      IF (NNB.LE.3) THEN
+      IF (NNB.LE.3.AND.RI2.GT.RH2) THEN
           A1 = 2.0*RS(I)
           DO 45 L = 1,NNB
               J = KLIST(L+1)
@@ -433,7 +441,7 @@
 *       Note small STEPR after new COAL with close perturber.
 *
       K = 1
-   60 IF (NNB.GT.NNBMAX.OR.I.GT.N) GO TO 70
+   60 IF (NNB.GT.NBMAX.OR.I.GT.N) GO TO 70
       J = JJLIST(K)
 *       Skip single regularized component (replaced by c.m.) and also c.m.
       IF (STEP(J).GT.0.1*DTMIN.OR.J.LT.IFIRST.OR.J.GT.N) GO TO 68
@@ -583,7 +591,7 @@
 *
 *       Select discrete value (increased by 2, decreased by 2 or unchanged).
       IF (TTMP.GT.2.0*STEPR(I)) THEN
-          IF (DMOD(TIME,2.0D0*DTR).EQ.0.0D0) THEN 
+          IF (DMOD(TIME,2.0D0*DTR).EQ.0.0D0) THEN
               TTMP = MIN(2.0*DTR,SMAX)
 *       Include factor 4 increase for rare cases of too small regular steps.
               IF (DT0.GT.10.0*TTMP.AND.
@@ -591,7 +599,7 @@
                   TTMP = MIN(2.0*TTMP,SMAX)
               END IF
           ELSE
-              TTMP = STEPR(I) 
+              TTMP = STEPR(I)
           END IF
       ELSE IF (TTMP.LT.DTR) THEN
           TTMP = 0.5*DTR
