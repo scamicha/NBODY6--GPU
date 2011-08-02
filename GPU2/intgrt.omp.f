@@ -20,14 +20,14 @@
       SAVE IQ,ICALL,NQ,LQ,LOOP,LSTEPM,STEPM,ISAVE,JSAVE,ISTART
       DATA IQ,ICALL,LQ,LOOP,LSTEPM,STEPM /0,2,11,.TRUE.,.FALSE.,0.03125/
       DATA ISAVE,JSAVE,ISTART /0,0,0/
-      SAVE TLISTQ,TMIN,ICOMP0,JCOMP0,NPACT
+      SAVE TLISTQ,TMIN,ICOMP0,JCOMP0,NPACT,GF,GFD
 *     SAVE CPRED,CPRED2,CPRED3
 *     DATA CPRED,CPRED2,CPRED3 /0.0D0,0.0D0,0.0D0/
 *
 *
 *       Update quantized value of STEPM for large N (first time only).
       IF (.NOT.LSTEPM.AND.NZERO.GT.1024) THEN
-          K = (FLOAT(NZERO)/1024.0)**0.333333
+          K = INT((FLOAT(NZERO)/1024.0)**0.333333)
           STEPM = 0.03125D0/2**(K-1)
           LSTEPM = .TRUE.
       END IF
@@ -176,17 +176,15 @@
               DO 10 L = 1,20
                   NL(L) = 0
    10         CONTINUE
-!$omp parallel do private(I)
               DO 14 I = IFIRST,NTOT
 *       Count steps at five different levels for the smallest values.
                   DO 12 L = LQB,LQS
                       IF (STEP(I).LT.DTK(L)) NL(L) = NL(L) + 1
    12             CONTINUE
    14         CONTINUE
-!$omp end parallel do
               NLSUM = 0
 *       Determine interval by summing smallest steps until near sqrt(N-N_b).
-              NSQ = SQRT(FLOAT(N - NPAIRS))
+              NSQ = INT(SQRT(FLOAT(N - NPAIRS)))
               LQ = LQS
               DO 15 L = LQS,LQB,-1
                   NLSUM = NLSUM + NL(L)
@@ -215,7 +213,7 @@
       END IF
 *
 *     TTT = TIME
-*       Find all particles in next block (TNEW = TMIN).
+*       Find all particles in next block (TNEW = TMIN) and set TIME.
       CALL INEXT(NQ,LISTQ,TMIN,NXTLEN,NXTLST)
 *
 *       Set new time and save block time (for regularization terminations).
@@ -296,7 +294,7 @@
           IF (IQ.LT.0) GO TO 999
       END IF
 *
-*       Define pointers for irregular and regular force.
+*       Form lists of candidates for new irregular and regular force.
       NFR = 0
       DO 28 L = 1,NXTLEN
           J = NXTLST(L)
@@ -309,7 +307,7 @@
           END IF
    28 CONTINUE
 *
-*       Decide between predicting < NPACT active (NFR = 0) or all particles.
+*       Decide between predicting <= NPACT active (NFR = 0) or all particles.
       IF (NXTLEN.LE.NPACT.AND.NFR.EQ.0) THEN
 *
 *       Predict active particles in the GPUIRR library.
@@ -345,7 +343,7 @@
           CALL XCPRED(2)
       END IF
 *
-*       Evaluate all irregular forces in the GPUIRR library.
+*       Evaluate all irregular forces & derivatives in the GPUIRR library.
 *     DO 46 II = 1,NXTLEN
 *         I = NXTLST(II)
 *         CALL GPUIRR_FIRR(I,GF(1,II),GFD(1,II))
@@ -355,10 +353,9 @@
 *       Choose between standard and parallel irregular integration.
       IF (NXTLEN.LE.NPMAX) THEN
 *
-*       Obtain all irregular forces on the block sequentially.
+*       Correct the irregular steps sequentially.
       DO 48 II = 1,NXTLEN
           I = NXTLST(II)
-*
 *       Advance the irregular step (no copy of X0 to GPUIRR needed here).
           CALL NBINT(I,IKS,IRR(II),GF(1,II),GFD(1,II))
 *         CALL GPUIRR_SET_JP(I,X0(1,I),X0DOT(1,I),F(1,I),FDOT(1,I),
@@ -374,22 +371,17 @@
    48 CONTINUE
 *
       ELSE
-*       Obtain all irregular forces in parallel.
+*       Perform irregular correction in parallel.
 !$omp parallel do private(II, I)
       DO 50 II = 1,NXTLEN
           I = NXTLST(II)
-*
-*       Advance the irregular steps (parallel version).
-*         CALL GPUIRR_FIRR(I,GF(1,II),GFD(1,II))
           CALL NBINTP(I,IRR(II),GF(1,II),GFD(1,II))
-*         CALL GPUIRR_SET_JP(I,X0(1,I),X0DOT(1,I),F(1,I),FDOT(1,I),
-*    &                                            BODY(I),T0(I))
    50 CONTINUE
 !$omp end parallel do
       END IF
       NSTEPI = NSTEPI + NXTLEN
 *
-*       Begin regular force loop (general case NFR > 0, counter NBLCKR).
+*       Check regular force updates (NFR members on block-step #NBLCKR).
       IF (NFR.GT.0) THEN
       NBLCKR = NBLCKR + 1
       NN = NTOT - IFIRST + 1
@@ -413,7 +405,7 @@
       DO 55 II = 1,NFR,NIMAX
   550     NI = MIN(NFR-JNEXT,NIMAX)
 *       Copy neighbour radius, STEPR and state vector for each block.
-!$omp parallel do private(I, K)
+!$omp parallel do private(LL, I, K)
           DO 52 LL = 1,NI
               I = IREG(JNEXT+LL)
               H2I(LL) = RS(I)**2
@@ -425,10 +417,10 @@
    52     CONTINUE
 !$omp end parallel do
 *
-*       Evaluate forces, derivatives and neighbour lists for next block.
+*       Evaluate forces, derivatives and neighbour lists for new block.
           CALL GPUNB_REGF(NI,H2I,DTR,XI,VI,GPUACC,GPUJRK,GPUPHI,LMAX,
      &                                                   NBMAX,LISTGP)
-*       Copy neighbour list after overflow check.
+*       Copy neighbour lists from the GPU after overflow check.
           DO 54 LL = 1,NI
               I = IREG(JNEXT + LL)
               NNB = LISTGP(1,LL)
@@ -451,7 +443,7 @@
               NOFL2 = 0
               GO TO 550
            END IF
-!$omp parallel do private(I, ITEMP, NNB, L1, L)
+!$omp parallel do private(LL, I, ITEMP, NNB, L1, L)
           DO 56 LL = 1,NI
               I = IREG(JNEXT + LL)
               NNB = LISTGP(1,LL)
@@ -469,16 +461,16 @@
    56     CONTINUE
 !$omp end parallel do
 *
-*       Evaluate irregular forces by vector procedure.
+*       Evaluate current irregular forces by vector procedure.
           CALL GPUIRR_FIRR_VEC(NI,IREG(II),GF(1,1),GFD(1,1))
 !$omp parallel do private(I, LX)
           DO 57 LL = 1,NI
               I = IREG(JNEXT+LL)
-*       Obtain new irregular force (scalar, old) and perform correction.
+*       Send new irregular force and perform correction.
 *             CALL GPUIRR_FIRR(I,GF(1,LL),GFD(1,LL))
               CALL GPUCOR(I,XI(1,LL),VI(1,LL),GPUACC(1,LL),GPUJRK(1,LL),
      &                               GF(1,LL),GFD(1,LL),LISTGP(1,LL),LX)
-*       Update neighbour lists in GPUIRR library (only if changed).
+*       Update neighbour lists in GPUIRR library (only if changed: LX > 0).
               IF (LX.GT.0) THEN
                   CALL GPUIRR_SET_LIST(I,LIST(1,I))
                   NBPRED = NBPRED + 1

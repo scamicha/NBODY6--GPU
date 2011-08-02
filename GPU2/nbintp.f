@@ -104,10 +104,12 @@
           IF (LIST(1,J1).EQ.0) THEN
               GO TO 50
           END IF
-          IF (TIME - TPRED(J).EQ.0.0D0) THEN
+          IF (TPRED(J).EQ.TIME) THEN
+!$omp critical
               ZZ = 1.0
               IF (GAMMA(JPAIR).GT.1.0D-04) ZZ = 0.0
               CALL KSRES2(JPAIR,J1,J2,ZZ)
+!$omp end critical
           ELSE
               CALL JPRED(J)
           END IF
@@ -179,6 +181,7 @@
 *
 *       Include differential force treatment for regularized subsystem.
    60 IF (NCH.GT.0) THEN
+!$omp critical
 *       Distinguish between chain c.m. and any other particle.
           IF (NAME(I).EQ.0) THEN
               CALL CHFIRR(I,0,XI,XIDOT,FIRR,FD)
@@ -187,14 +190,16 @@
               NP1 = LISTC(1) + 1
               DO 65 L = 2,NP1
                   J = LISTC(L)
-                  IF (J.GT.I) GO TO 70
+                  IF (J.GT.I) GO TO 69
                   IF (J.EQ.I) THEN
                       CALL FCHAIN(I,1,XI,XIDOT,FIRR,FD)
-                      GO TO 70
+                      GO TO 69
                   END IF
    65         CONTINUE
           END IF
-      END IF 
+   69     CONTINUE
+!$omp end critical
+      END IF
 *
 *       Check option for external tidal field using predicted FREG.
    70 DT = TIME - T0(I)
@@ -267,7 +272,7 @@
 *
 *       Select discrete value (increased by 2, decreased by 2 or unchanged).
       IF (TTMP.GT.2.0*STEP(I)) THEN
-          IF (DMOD(TIME,2.0*STEP(I)).EQ.0.0D0) THEN 
+          IF (DMOD(TIME,2.0*STEP(I)).EQ.0.0D0) THEN
               TTMP = MIN(2.0*STEP(I),SMAX)
 *       Include factor 4 increase for FPOLY initializations with small STEP.
               IF (DT0.GT.10.0*TTMP.AND.
@@ -275,7 +280,7 @@
                   TTMP = MIN(2.0*TTMP,SMAX)
               END IF
           ELSE
-              TTMP = STEP(I) 
+              TTMP = STEP(I)
           END IF
       ELSE IF (TTMP.LT.STEP(I)) THEN
           TTMP = 0.5*STEP(I)

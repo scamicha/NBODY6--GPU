@@ -10,7 +10,7 @@
       COMMON/PREDICT/ TPRED(NMAX)
       REAL*8  XI(3),XIDOT(3),FIRR(3),FREG(3),DV(3),FD(3),FDR(3)
       REAL*8  FRX(3),FDX(3)
-      INTEGER KLIST(LMAX),JJLIST(LMAX)
+      INTEGER KLIST(LMAX),JJLIST(2*LMAX)
 *     SAVE FXI,FYI,FZI
 *
 *
@@ -260,12 +260,12 @@
       END IF
 *
 *       See whether neighbour radius of c.m. body should be increased.
-      IF (I.GT.N.AND.NNB.LT.ZNBMAX.AND.RI2.LT.RH2) THEN
+      IF (I.GT.N.AND.NNB.LT.NBMAX.AND.RI2.LT.RH2) THEN
 *       Set perturber range (soft binaries & H > 0 have short duration).
           A2 = 100.0*BODY(I)/ABS(H(I-N))
-*       Stabilize NNB on ZNBMAX if too few perturbers.
+*       Stabilize NNB on NBMAX if too few perturbers.
           IF (A2.GT.RS(I)) THEN
-              A3 = MAX(1.0 - FLOAT(NNB)/ZNBMAX,0.0D0)
+              A3 = MAX(1.0 - FLOAT(NNB)/FLOAT(NBMAX),0.0D0)
 *       Modify volume ratio by approximate square root factor.
               A4 = 1.0 + 0.5*A3
           END IF
@@ -583,9 +583,14 @@
 *       STEPR = (ETAR*(F*F2DOT + FDOT**2)/(FDOT*F3DOT + F2DOT**2))**0.5.
       TTMP = TSTEP(FREG,FDR,D2R(1,I),D3R(1,I),ETAR)
 *
-*       Impose a smooth step reduction inside compact core.
-      IF (NC.LT.50.AND.RI2.LT.RC2) THEN
-          TTMP = TTMP*MIN(1.0D0,0.5D0*(1.0D0 + RI2*RC2IN))
+*       Impose a smooth step reduction inside compact core (superseded).
+*     IF (NC.LT.50.AND.RI2.LT.RC2) THEN
+*         TTMP = TTMP*MIN(1.0D0,0.5D0*(1.0D0 + RI2*RC2IN))
+*     END IF
+*       Avoid small steps near the centre (extra condition for DTR < SMIN).
+      IF (RI2.LT.4.0*RC2.OR.
+     &   (TTMP.LT.SMIN.AND.FR2.LT.(BODYM/RS2)**2)) THEN
+          TTMP = MAX(1.0D-04*RS(I),TTMP)
       END IF
       DT0 = TTMP
 *

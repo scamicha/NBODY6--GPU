@@ -184,7 +184,7 @@
           RMIN = 4.0*RSCALE/(FLOAT(N)*RHOD**0.3333)
 *       Include alternative expression based on core radius (experimental).
           IF (KZ(16).GT.1.AND.NC.LT.0.01*N) THEN
-              RMIN = 0.05*RC/FLOAT(NC)**0.3333
+              RMIN = 0.01*RC/FLOAT(NC)**0.3333
           END IF
 *       Use harmonic mean to reduce fluctuations (avoid initial value).
           IF (TIME.GT.0.0D0) RMIN = SQRT(RMIN0*RMIN)
@@ -264,7 +264,7 @@
           TCR = 2.0*RSCALE/SQRT(2.0*ZKIN/ZMASS)
       END IF
 *       Update maximum NNB used by GPU & GPUCOR (without affecting average).
-      NBMAX = MIN(NNBMAX+100,LMAX-5)
+      NBMAX = MIN(NNBMAX+150,LMAX-5)
 *
 *       Print energy diagnostics & KS parameters.
       ICR = TTOT/TCR
@@ -431,4 +431,3 @@
    70 RETURN
 *
       END
-
