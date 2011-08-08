@@ -8,6 +8,7 @@
       REAL*8  RSAVE(3,NMAX),VSAVE(3,NMAX),BSAVE(NMAX)
       real*8 G, M_sun, R_sun, pc, Km, Kmps
       real*8 mscale, lscale, vscale
+      SAVE RSAVE,VSAVE,BSAVE
 *
 *       Define physical constants (consistent with IAU & routine UNITS).
       G = 6.6743D-08
@@ -17,8 +18,8 @@
       Km = 1.0D+05
       Kmps = 1.0D+05
 *
-*       Read virial ratio, rotation scaling factors & tidal radius.
-      READ (5,*)  Q, VXROT, VZROT, RTIDE
+*       Read virial ratio, rotation scaling factors, tidal radius & SMAX.
+      READ (5,*)  Q, VXROT, VZROT, RTIDE, SMAX
       RSPH2 = RTIDE
       QVIR = Q
 *
@@ -142,12 +143,12 @@
           ZCM = ZKIN
           PCM = POT
 *
-*       Evaluate total energy in physical units (M_sun pc2 s-2).
-*       G (g-1 cm3 s-2) ==> G (M_sun-1 pc3 s-2)
+*       Evaluate total energy in physical units (M_sun pc^2 s^-2).
+*       G (g^-1 cm^3 s^-2) ==> G (M_sun^-1 pc^3 s^-2)
           G = G/(pc**3/M_sun)
-*       Form kinetic energy as KE (M_sun Km2 s-2) ==> KE (M_sun pc2 s-2).
+*       Form kinetic energy as KE (M_sun Km^2 s^-2) ==> KE (M_sun pc^2 s^-2).
           ZKIN = ZKIN*Km**2/pc**2
-*       PE term = (M_sun-1 pc3 s-2)*(M_sun2 pc-1) = (M_sun pc2 s-2).
+*       PE term = (M_sun^-1 pc^3 s^-2)*(M_sun^2 pc^-1) = (M_sun pc^2 s^-2).
           EPH = ZKIN - G*POT
           IF (EPH.GT.0.0) EPH = -EPH
 *       Set conversion factors (N-body to M_sun, pc, km/s; Heggie & Mathieu).
@@ -241,6 +242,10 @@
                   XDOT(K,I) = XDOT(K,I)*SQRT(SX)
    68         CONTINUE
    70     CONTINUE
+*
+*       Set current energies to consistent values (may be needed in XTRNL0).
+          ZKIN = ZKIN*QV**2*SX
+          POT = POT*SX
       END IF
 *
 *       Perform second stage of the optional uploading procedure.
@@ -338,7 +343,7 @@
    77     CONTINUE
       END IF
 *
-*       Check whether to include rotation (VXROT = 0 in standard case). 
+*       Check whether to include rotation (VXROT = 0 in standard case).
       IF (VXROT.GT.0.0D0) THEN
 *
 *       Set angular velocity for retrograde motion (i.e. star clusters).
@@ -367,7 +372,7 @@
       IF (KZ(22).EQ.-1.OR.KZ(22).EQ.5) THEN
           DO 86 I = 1,N
               write (99,84)  BODY(I)*mscale, (X(K,I)*lscale,K=1,3),
-     &                        (XDOT(K,I)*vscale,K=1,3)
+     &                       (XDOT(K,I)*vscale,K=1,3)
    86     CONTINUE
       END IF
 *
@@ -398,12 +403,10 @@
 *       Print half-mass relaxation time & equilibrium crossing time.
       A1 = FLOAT(NCM)
       TRH = 4.0*TWOPI/3.0*(VC*RSCALE)**3/(15.4*ZMASS**2*LOG(A1)/A1)
-      WRITE (6,95)  TRH, TCR, 2.0*RSCALE/VC
-   95 FORMAT (/,12X,'TIME SCALES:   TRH =',1PE8.1,'  TCR =',E8.1,
-     &                                            '  2<R>/<V> =',E8.1,/)
+      WRITE (6,95)  TRH, TCR, 2.0*RSCALE/VC, SMAX
+   95 FORMAT (/,12X,'TIME SCALES:   TRH =',1P,E8.1,'  TCR =',0P,F6.2,
+     &                           '  2<R>/<V> =',F6.2,'  SMAX =',F7.3,/)
 *
       RETURN
 *
       END
-
-

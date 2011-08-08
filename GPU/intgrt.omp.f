@@ -13,11 +13,14 @@
       REAL*8   H2I(NIMAX),XI(3,NIMAX),VI(3,NIMAX),GPUACC(3,NIMAX),
      &         GPUJRK(3,NIMAX),GPUPHI(NIMAX)
       INTEGER  NXTLST(NMAX),IBL(LMAX),NBLIST(NMAX),LISTQ(NMAX),NL(20)
-      INTEGER  IR(NMAX),LISTGP(LMAX,NIMAX)
+      INTEGER  IRR(NMAX),IREG(NMAX),LISTGP(LMAX,NIMAX)
       LOGICAL LOOP,LSTEPM
-      SAVE IQ,ICALL,NQ,LQ,LOOP,LSTEPM,STEPM,ISAVE,JSAVE,ISTART,NNPREV
+      SAVE IQ,ICALL,NQ,LQ,LOOP,LSTEPM,STEPM,ISAVE,JSAVE,ISTART
       DATA IQ,ICALL,LQ,LOOP,LSTEPM,STEPM /0,2,11,.TRUE.,.FALSE.,0.03125/
       DATA ISAVE,JSAVE,ISTART /0,0,0/
+      SAVE TLISTQ,TMIN,NPACT
+*     SAVE CPRED
+*     DATA CPRED /0.0D0/
 *
 *
 *       Enforce level search on return, except new and terminated KS.
@@ -25,7 +28,7 @@
 *
 *       Update quantized value of STEPM for large N (first time only).
       IF (.NOT.LSTEPM.AND.NZERO.GT.1024) THEN
-          K = (FLOAT(NZERO)/1024.0)**0.333333
+          K = INT((FLOAT(NZERO)/1024.0)**0.333333)
           STEPM = 0.03125D0/2**(K-1)
           LSTEPM = .TRUE.
       END IF
@@ -33,9 +36,18 @@
 *       Open the GPU library on each new run (note nnbmax = NN is printed).
       IF (ISTART.EQ.0) THEN
           NN = N
-          NNPREV = NN
           CALL GPUNB_OPEN(NN)
           ISTART = 1
+*       Define parameter for predicting active particles in library.
+          IF (N.LE.5000) THEN
+              NPACT = 20
+          ELSE IF (N.LE.50000) THEN
+              NPACT = 25
+          ELSE IF (N.LE.100000) THEN
+              NPACT = 40
+          ELSE
+              NPACT = 50
+          END IF
       END IF
 *
 *       Search for high velocities after escape or KS/chain termination.
@@ -49,18 +61,22 @@
       DTM = 1.0
       TPREV = TIME
 *       Initialize end-point of integration times and set DTM.
+!$omp parallel do private(I)
       DO 1000 I = IFIRST,NTOT
           TNEW(I) = T0(I) + STEP(I)
-          DTM = MIN(DTM,STEP(I))
- 1000 CONTINUE
+*         DTM = MIN(DTM,STEP(I))
+1000 CONTINUE
+!$omp end parallel do
 *
+*       Take typical small quantized step for lower search index.
+      CALL STEPK(DTMIN,DTM)
 *       Determine level for the smallest step (ignore extreme values).
       LQS = 20
       DO 1001 L = 6,20
           IF (DTM.EQ.DTK(L)) THEN
               LQS = L
           END IF
- 1001 CONTINUE
+1001 CONTINUE
 *
 *       Specify upper level for optimized membership.
       LQB = LQS - 4
@@ -120,14 +136,17 @@
 *
 *       Set new time and save block time (for regularization terminations).
       I = NXTLST(1)
-      TIME = T0(I) + STEP(I)
+      TIME = TMIN
       TBLOCK = TIME
-*     IPRED = 0
 *
 *     WRITE (6,22)  I, NXTLEN, NSTEPU, NSTEPI, TIME, STEP(I), STEPR(I)
 *  22 FORMAT (' INTGRT   I LEN #U #I T S SR  ',2I6,2I11,F9.4,1P,2E10.2)
-*     IF (STEP(I).LT.1.0D-08) STOP
 *     CALL FLUSH(6)
+      IF (STEP(I).LT.1.0D-10) THEN
+          WRITE (6,24)  I, NAME(I), NXTLEN, NSTEPR, STEP(I), STEPR(I)
+   24     FORMAT (' SMALL STEP!!    I NAME LEN #R SI SR ',
+     &                              3I6,I11,1P,2E10.2)
+      END IF
 *
 *       Re-determine list if current time exceeds boundary.
       IF (TIME.GT.TLISTQ) GO TO 1
@@ -192,17 +211,22 @@
           J = NXTLST(L)
           IF (TNEW(J).GE.T0R(J) + STEPR(J)) THEN
               NFR = NFR + 1
-              IR(NFR) = J
+              IREG(NFR) = J
+              IRR(L) = J
+          ELSE
+              IRR(L) = 0
           END IF
    28 CONTINUE
 *
 *       Decide between merging of neighbour lists or full N prediction.
-      IF (NXTLEN.LE.25.AND.NFR.EQ.0) THEN
+      IF (NXTLEN.LT.NPACT.AND.NFR.EQ.0) THEN
 *
 *       Initialize pointers for neighbour lists.
+!$omp parallel do private(L)
           DO 30 L = 1,NXTLEN
               IBL(L) = NXTLST(L)
    30     CONTINUE
+!$omp end parallel do
 *
 *       Merge all neighbour lists (with absent members of IBL added).
           CALL NBSORT(NXTLEN,IBL,NNB,NBLIST)
@@ -232,31 +256,28 @@
                   END IF
               END IF
    35     CONTINUE
-*       Ensure prediction of chain c.m. not on block-step (velocity needed!).
-          IF (NCH.GT.0) THEN
-              IF (TNEW(ICH).GT.TBLOCK) THEN
-                  CALL XVPRED(ICH,0)
-*       Note that XCPRED only predicts coordinates of chain c.m.
-              END IF
-          END IF
       ELSE
-*         IPRED = 1
           NNPRED = NNPRED + 1
-!$omp parallel do private(S, S1, S2)
-          DO 40 J = IFIRST,NTOT
-              IF (BODY(J).EQ.0.0D0) GO TO 40
-              S = TIME - T0(J)
-              S1 = 1.5*S
-              S2 = 2.0*S
-              X(1,J) = ((FDOT(1,J)*S + F(1,J))*S +X0DOT(1,J))*S +X0(1,J)
-              X(2,J) = ((FDOT(2,J)*S + F(2,J))*S +X0DOT(2,J))*S +X0(2,J)
-              X(3,J) = ((FDOT(3,J)*S + F(3,J))*S +X0DOT(3,J))*S +X0(3,J)
-              XDOT(1,J) = (FDOT(1,J)*S1 + F(1,J))*S2 + X0DOT(1,J)
-              XDOT(2,J) = (FDOT(2,J)*S1 + F(2,J))*S2 + X0DOT(2,J)
-              XDOT(3,J) = (FDOT(3,J)*S1 + F(3,J))*S2 + X0DOT(3,J)
-   40     CONTINUE
-!$omp end parallel do
+*         TT3 = DBLTIM()
+*         DO 40 J = IFIRST,NTOT
+*             IF (BODY(J).EQ.0.0D0) GO TO 40
+*             S = TIME - T0(J)
+*             S1 = 1.5*S
+*             S2 = 2.0*S
+*             X(1,J) = ((FDOT(1,J)*S + F(1,J))*S +X0DOT(1,J))*S +X0(1,J)
+*             X(2,J) = ((FDOT(2,J)*S + F(2,J))*S +X0DOT(2,J))*S +X0(2,J)
+*             X(3,J) = ((FDOT(3,J)*S + F(3,J))*S +X0DOT(3,J))*S +X0(3,J)
+*             XDOT(1,J) = (FDOT(1,J)*S1 + F(1,J))*S2 + X0DOT(1,J)
+*             XDOT(2,J) = (FDOT(2,J)*S1 + F(2,J))*S2 + X0DOT(2,J)
+*             XDOT(3,J) = (FDOT(3,J)*S1 + F(3,J))*S2 + X0DOT(3,J)
+*  40     CONTINUE
+*       Perform full-N prediction using Keigo's C++ procedure.
+      CALL CXVPRED(IFIRST,NTOT,TIME,T0,X0,X0DOT,F,FDOT,X,XDOT)
 *
+*     TT4 = DBLTIM()
+*     CPRED = CPRED + (TT4 - TT3)
+*     IF (DMOD(TIME,2.0D0).EQ.0.0D0) WRITE (6,540)  CPRED
+* 540 FORMAT (' TIMING CXVPRED  ',1P,E10.2)
 *       Resolve all perturbed KS pairs at frequent intervals.
           JJ = -1
           DO 45 JPAIR = 1,NPAIRS
@@ -278,121 +299,152 @@
 *
 *       Predict chain variables and perturber cordinates at new block-time.
       IF (NCH.GT.0) THEN
+          IF (TNEW(ICH).GT.TBLOCK) THEN
+              CALL XVPRED(ICH,0)
+          END IF
           CALL XCPRED(2)
       END IF
 *
+*       Choose between standard and parallel irregular integration.
       IF (NXTLEN.LE.NPMAX) THEN
 *       Obtain all irregular forces in one loop.
-      DO 50 II = 1,NXTLEN
+      DO 48 II = 1,NXTLEN
 *       Define pointer array and scalar for regular force condition.
           I = NXTLST(II)
-          IF (TNEW(I).GE.T0R(I) + STEPR(I)) THEN
-              IR1 = 1
-          ELSE
-              IR1 = 0
-          END IF
 *
 *       Advance the irregular steps.
-          CALL NBINT(I,IKS,IR1)
+          CALL NBINT(I,IKS,IRR(II))
 *
 *       Save indices and TIME of first KS candidates in the block.
           IF (IKS0.EQ.0.AND.IKS.GT.0) THEN
               ISAVE = ICOMP
               JSAVE = JCOMP
               TSAVE = TIME
+              IKS0 = IKS
           END IF
-   50 CONTINUE
+   48 CONTINUE
 *
       ELSE
 *       Obtain all irregular forces in parallel.
-!$omp parallel do private(II, I, IR1)
-      DO II = 1,NXTLEN
+!$omp parallel do private(II, I)
+      DO 50 II = 1,NXTLEN
 *       Define pointer array and scalar for regular force condition.
           I = NXTLST(II)
-          IF (TNEW(I).GE.T0R(I) + STEPR(I)) THEN
-              IR1 = 1
-          ELSE
-              IR1 = 0
-          END IF
 *
 *       Advance the irregular steps (parallel version).
-          CALL NBINTP(I,IR1)
-      END DO
+          CALL NBINTP(I,IRR(II))
+   50 CONTINUE
 !$omp end parallel do
-          NSTEPI = NSTEPI + NXTLEN
       END IF
+      NSTEPI = NSTEPI + NXTLEN
 *
-*       Check opening the GPU for NN particles (NB! better initially).
+*       Begin regular force loop (general case NFR > 0, counter NBLCKR).
       IF (NFR.GT.0) THEN
-      NN = N - IFIRST + 1
-*     CALL GPUNB_OPEN(NN)
+      NBLCKR = NBLCKR + 1
+*       Include c.m. particles in the neighbour list (new 08/10).
+      NN = NTOT - IFIRST + 1
       CALL GPUNB_SEND(NN,BODY(IFIRST),X(1,IFIRST),XDOT(1,IFIRST))
 *     CALL GPUNB_REGF(NI,H2I,XI,VI,GPUACC,GPUJRK,LMAX,NNBMAX,LISTGP)
 *
 *       Perform regular force loop.
-      JNEXT = 0
       NOFL(1) = 0
+      NOFL2 = 0
+      JNEXT = 0
       DO 55 II = 1,NFR,NIMAX
-          NI = MIN(NFR-JNEXT,NIMAX)
+  550     NI = MIN(NFR-JNEXT,NIMAX)
 *       Copy neighbour radius and state vector for each block.
+!$omp parallel do private(LL, I, K)
           DO 52 LL = 1,NI
-              JNEXT = JNEXT + 1
-              I = IR(JNEXT)
+              I = IREG(JNEXT+LL)
               H2I(LL) = RS(I)**2
               DO 51 K = 1,3
                   XI(K,LL) = X(K,I)
                   VI(K,LL) = XDOT(K,I)
    51         CONTINUE
    52     CONTINUE
+!$omp end parallel do
+*
           CALL GPUNB_REGF(NI,H2I,XI,VI,GPUACC,GPUJRK,GPUPHI,LMAX,
-     &                    NNBMAX,LISTGP)
-*       Reset block-step pointer for regular steps (double counting).
-          JNEXT = JNEXT - NI
+     &                                               NBMAX,LISTGP)
           DO 54 LL = 1,NI
-              JNEXT = JNEXT + 1
-              I = IR(JNEXT)
+              I = IREG(JNEXT+LL)
               NNB = LISTGP(1,LL)
-*       Switch to standard REGINT on < 0 (large NNB or block overflow).
+*       Repeat last block with reduced RS(I) on NNB < 0 (at end of loop).
               IF (NNB.LT.0) THEN
-                  WRITE (41,56)  NSTEPR, NAME(I), LIST(1,I), RS(I)
-   56             FORMAT (' OVERFLOW!   #R NAME NB0 RS ',I11,I6,I4,F8.2)
+                  WRITE (41,556)  NSTEPR, NAME(I), LIST(1,I), RS(I)
+  556             FORMAT (' OVERFLOW!   #R NAME NB0 RS ',I11,I6,I4,F8.2)
                   CALL FLUSH(41)
-                  CALL REGINT2(I,XI(1,LL),VI(1,LL))
                   NOFL(1) = NOFL(1) + 1
-                  GO TO 54
+                  RS(I) = 0.9*RS(I)
+                  H2I(LL) = RS(I)**2
+                  NOFL2 = NOFL2 + 1
               END IF
+   54     CONTINUE
+          IF (NOFL2.GT.0) THEN
+              NOFL2 = 0
+              GO TO 550
+           END IF
+!$omp parallel do private(LL, I, ITEMP, NNB, L1, L)
+          DO 56 LL = 1, NI
+              I = IREG(JNEXT+LL)
+              NNB = LISTGP(1,LL)
 *       Copy neighbour list but skip self-interaction.
               L1 = 1
               DO 53 L = 2,NNB+1
 *       Note GPU address starts from 0 (hence add IFIRST to neighbour list).
-                  IF (LISTGP(L,LL)+IFIRST.NE.I) THEN
+                  ITEMP = LISTGP(L,LL) + IFIRST
+                  IF (ITEMP.NE.I) THEN
                       L1 = L1 + 1
-                      ILIST(L1) = LISTGP(L,LL) + IFIRST
+                      LISTGP(L1,LL) = ITEMP
                   END IF
    53         CONTINUE
-              ILIST(1) = L1 - 1
+              LISTGP(1,LL) = L1 - 1
+   56     CONTINUE
+!$omp end parallel do
 *       Obtain irregular force and perform regular force correction.
-              CALL GPUCOR(I,XI(1,LL),VI(1,LL),GPUACC(1,LL),GPUJRK(1,LL))
+!$omp parallel do private(LL, I)
+          DO 57 LL = 1, NI
+              I = IREG(JNEXT+LL)
+              CALL GPUCOR(I,XI(1,LL),VI(1,LL),GPUACC(1,LL),
+     &                                        GPUJRK(1,LL),LISTGP(1,LL))
+*       Note errors in the potential when using predicted coordinates.
 *             POT = POT + BODY(I)*GPUPHI(LL)
-   54     CONTINUE
+   57     CONTINUE
+!$omp end parallel do
+          JNEXT = JNEXT + NI
    55 CONTINUE
+*
 *       Accumulate the sum of overflows (NOFL(1) holds current number).
       NOFL(2) = NOFL(2) + NOFL(1)
+      NSTEPR = NSTEPR + NFR
 *
-*       Close the GPU (only at end of run).
-*     CALL GPUNB_CLOSE
       END IF
 *
-*       Copy current coordinates & velocities from corrected values.
-      DO 60 L = 1,NXTLEN
-*       Determine next block time (note STEP may shrink in REGINT).
+*       Determine next block time (note STEP may shrink in GPUCOR).
+      DO 350 L = 1,NXTLEN
+*       Determine next block time (note STEP may shrink in GPUCOR).
           I = NXTLST(L)
-          TMIN = MIN(TNEW(I),TMIN)
+          IF (TNEW(I).LT.TMIN) THEN
+              TMIN = TNEW(I)
+          END IF
+  350 CONTINUE
+*
+*       Copy current coordinates & velocities from corrected values, IQ.NE.0.
+      IF (IKS.GT.0.OR.IQ.NE.0.OR.TIME.GE.TADJ.OR.TIME.GE.TNEXT.OR.
+     &   (KZ(19).GE.3.AND.DMOD(TIME,STEPX).EQ.0.0D0)) THEN
+*       Note: need copy X & XDOT at output (skip in XVPRED); also cf. #31 >0).
+!$omp parallel do private(I, L, K)
+      DO 60 L = 1,NXTLEN
+*       Determine next block time (note STEP may shrink in GPUCOR).
+          I = NXTLST(L)
+*         TMIN = MIN(TNEW(I),TMIN)
           DO 58 K = 1,3
               X(K,I) = X0(K,I)
               XDOT(K,I) = X0DOT(K,I)
    58     CONTINUE
    60 CONTINUE
+!$omp end parallel do
+      END IF
 *
 *       Check integration of tidal tail members.
       IF (NTAIL.GT.0) THEN
@@ -420,7 +472,7 @@
       END IF
 *
 *       Perform optional check on high-velocity particles at major times.
-      IF (KZ(37).GT.0.AND.LISTV(1).GT.0) THEN
+      IF (KZ(37).GT.1.AND.LISTV(1).GT.0) THEN
           IF (DMOD(TIME,STEPM).EQ.0.0D0) THEN
               CALL SHRINK(TMIN)
               IF (LISTV(1).GT.0) THEN
@@ -445,7 +497,6 @@
 *       Advance counters and check timer & optional COMMON save (NSUB = 0).
       NTIMER = NTIMER + 1
       IF (NTIMER.LT.NMAX) GO TO 1
-
       NTIMER = 0
       NSTEPS = NSTEPS + NMAX
 *
@@ -482,28 +533,29 @@
           GO TO 1
       END IF
 *
+*       Obtain elapsed wall-clock time (hours, minutes & seconds).
+      CALL WTIME(IHOUR,IMIN,ISEC)
+      SECS = 3600.0*IHOUR + 60.0*IMIN + ISEC
+      WTOT = WTOT + SECS - WTOT0
+      WTOT0 = SECS
+*
 *       Terminate run with optional COMMON save.
       IF (KZ(1).GT.0) THEN
           CPUTOT = CPUTOT + TCOMP - CPU0
+          WT = WTOT/3600.0
           CALL MYDUMP(1,1)
-          WRITE (6,80)  TIME+TOFF, TCOMP, CPUTOT/60.0, ERRTOT, DETOT
+          WRITE (6,80)  TIME+TOFF, TCOMP, CPUTOT/60.0, ERRTOT, DETOT, WT
    80     FORMAT (/,9X,'COMMON SAVED AT TIME =',F8.2,'  TCOMP =',F7.1,
      &                 '  CPUTOT =',F6.1,'  ERRTOT =',F10.6,
-     &                 '  DETOT =',F10.6)
+     &                 '  DETOT =',F10.6,'  WTOT =',F7.1)
       END IF
 *
+*       Close the library and stop.
       CALL GPUNB_CLOSE
       STOP
 *
 *       Set current global time.
   100 TTOT = TIME + TOFF
-*
-*       Close the GPU library at termination (use modified NCRIT).
-      IF (TTOT.GE.TCRIT.OR.N.LE.NCRIT+10) THEN
-          CALL GPUNB_CLOSE
-          IF (N.LE.NCRIT+10) NCRIT = N
-      END IF
-      NNPREV = NN
 *
       RETURN
 *

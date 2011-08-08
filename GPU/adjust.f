@@ -96,6 +96,9 @@
           DELTA1 = DE
           DETOT = DETOT + DE
           DE = DE/MAX(ZKIN,ABS(E(3)))
+          IF (ABS(DE).GT.100.0*ABS(DELTA1)) THEN
+              DE = 100.0*DELTA1
+          END IF
 *       Save sum of relative energy error for main output and accumulate DE.
           ERROR = ERROR + DE
           ERRTOT = ERRTOT + DE
@@ -181,7 +184,7 @@
           RMIN = 4.0*RSCALE/(FLOAT(N)*RHOD**0.3333)
 *       Include alternative expression based on core radius (experimental).
           IF (KZ(16).GT.1.AND.NC.LT.0.01*N) THEN
-              RMIN = 0.05*RC/FLOAT(NC)**0.3333
+              RMIN = 0.01*RC/FLOAT(NC)**0.3333
           END IF
 *       Use harmonic mean to reduce fluctuations (avoid initial value).
           IF (TIME.GT.0.0D0) RMIN = SQRT(RMIN0*RMIN)
@@ -192,7 +195,7 @@
 *       Specify binding energy per unit mass of hard binary (impose Q = 0.5).
           ECLOSE = 4.0*MAX(ZKIN,ABS(ZKIN - POT))/ZMASS
 *       Adopt central velocity as upper limit (avoids large kick velocities).
-          IF (2.0*ZKIN/ZMASS.GT.VC**2) ECLOSE = 2.0*VC**2
+          IF (2.0*ZKIN/ZMASS.GT.VC**2.AND.VC.GT.0.0) ECLOSE = 2.0*VC**2
           IF (Q.GT.0.5) THEN
               ECLOSE = 0.5*ECLOSE/Q
           END IF
@@ -216,16 +219,22 @@
       RMIN2 = RMIN**2
       RMIN22 = 4.0*RMIN2
       EBH = -0.5*BODYM*ECLOSE
+*       Check resetting most frequent counters.
+      IF (NSTEPI.GT.2000000000.OR.NSTEPI.LT.0) THEN
+          NSTEPI = 0
+          NIRECT = NIRECT + 1
+      END IF
+      IF (NBFLUX.GT.2000000000.OR.NBFLUX.LT.0) THEN
+          NBFLUX = 0
+          NBRECT = NBRECT + 1
+      END IF
       IF (TIME.LE.0.0D0) THEN
           STEPJ = 0.01*(60000.0/FLOAT(N))**0.3333
-          READ (5,*)  SMAX
           IF (DMOD(SMAX,DTK(10)).NE.0.0D0) THEN
               WRITE (6,42)  SMAX, SMAX/DTK(10)
    42         FORMAT (' FATAL ERROR!    SMAX SMAX/DTK(10) ',1P,2E10.2)
               STOP
           END IF
-          WRITE (6,43)  SMAX
-   43     FORMAT (/,12X,'MAXIMUM TIME-STEP ',F8.4)
 *       Ensure no steps exceed maximum (large step could stay unchanged).
           DO 44 I = IFIRST,NTOT
               IF (STEPR(I).GT.SMAX) THEN
@@ -254,17 +263,21 @@
       IF ((KZ(14).EQ.3.OR.KZ(14).EQ.4).AND.ZKIN.GT.0.0) THEN
           TCR = 2.0*RSCALE/SQRT(2.0*ZKIN/ZMASS)
       END IF
+*       Update maximum NNB used by GPU & GPUCOR (without affecting average).
+      NBMAX = MIN(NNBMAX+150,LMAX-5)
 *
 *       Print energy diagnostics & KS parameters.
       ICR = TTOT/TCR
 *       Obtain elapsed wall clock time (hours, minutes & seconds).
       CALL WTIME(IHOUR,IMIN,ISEC)
-      WRITE (6,45)  TTOT, Q, DE, BE(3),RMIN, DTMIN, ECLOSE, ICR, DELTA1,
-     &              IHOUR, IMIN, ISEC
+*       Save accumulated wall-clock time in seconds.
+      SECS = 3600.0*IHOUR + 60.0*IMIN + ISEC
+      WRITE (6,45)  TTOT, Q, DE, BE(3), RMIN, DTMIN, ICR, DELTA1, E(3),
+     &              DETOT, IHOUR, IMIN, ISEC
    45 FORMAT (/,' ADJUST:  TIME =',F8.2,'  Q =',F5.2,'  DE =',1P,E10.2,
      &          '  E =',0P,F10.6,'  RMIN =',1P,E8.1,'  DTMIN =',E8.1,
-     &          '  ECLOSE =',0P,F5.2,'  TC =',I5,'  DELTA =',1P,E9.1,
-     &          '  WTIME =',0P,I4,2I3)
+     &          '  TC =',0P,I5,'  DELTA =',1P,E9.1,'  E(3) =',0P,F10.6,
+     &          '  DETOT =',F10.6,'  WTIME =',I4,2I3)
       CALL FLUSH(6)
 *
 *       Perform automatic error control (RETURN on restart with KZ(2) > 1).
@@ -312,9 +325,9 @@
 *       Allow a gradual decrease of NNBMAX due to escaper removal.
       IF (KZ(40).EQ.3) THEN
           NNBMAX = NBZERO*SQRT(FLOAT(N)/FLOAT(NZERO))
-*       Note revised definition of ZNBMAX & ZNBMIN to reduce overflows.
-          ZNBMAX = 0.8*NNBMAX
-          ZNBMIN = MAX(0.1*NNBMAX, 1.0)
+*       Restore standard coeficcients because of new overflow procedure.
+          ZNBMAX = 0.9*NNBMAX
+          ZNBMIN = MAX(0.2*NNBMAX,1.0)
       END IF
 *
 *       Include optional fine-tuning of neighbour number (#40 >= 2).
@@ -330,12 +343,12 @@
       IOUT = 0
       IF (TIME.GE.TNEXT) THEN
           CALL OUTPUT
+          IOUT = 1
 *       Check optional overflow diagnostics (#33 > 1: current & accumulated).
           IF (KZ(33).GT.1) THEN
               WRITE (6,55)  NOFL(1), NOFL(2), ALPHA, NNB, NNBMAX
    55         FORMAT (' #9  OVERFLOWS  ',I5,I9,'   ALPHA =',F6.2,
      &                                 '  <NNB> =',I4,'  NNBMAX =',I4)
-              IOUT = 1
           END IF
       END IF
 *
@@ -367,7 +380,8 @@
       END IF
 *
 *       Include optional KS reg of binaries outside standard criterion.
-      IF (KZ(8).GT.0.AND.N.GE.5000) THEN
+      IF (KZ(8).GT.0.AND.N.GE.5000.AND.DMOD(TIME,DTK(10)).EQ.0.0D0) THEN
+*       Note DMOD condition needed for CALL KSREG and CALL STEPS.
           DTCL = 30.0*DTMIN
           RCL = 10.0*RMIN
           CALL SWEEP(DTCL,RCL)
@@ -387,6 +401,8 @@
       CALL CPUTIM(TCOMP)
       CPUTOT = CPUTOT + TCOMP - CPU0
       CPU0 = TCOMP
+      WTOT = WTOT + SECS - WTOT0
+      WTOT0 = SECS
 *
 *       Save COMMON after energy check (skip TRIPLE, QUAD, CHAIN).
       TDUMP = TIME
@@ -396,13 +412,18 @@
           IF (IOUT.GT.0) CALL MYDUMP(1,1)
       END IF
 *
-*       Check termination criteria (TIME > TCRIT & N <= NCRIT).
-      IF (TTOT.GE.TCRIT.OR.N.LE.NCRIT) THEN
+*       Check termination criteria (TIME > TCRIT, N <= NCRIT & next TADJ).
+      IF (TTOT.GE.TCRIT.OR.N.LE.NCRIT.OR.TTOT+DTADJ.GT.TCRIT) THEN
 *       Terminate after optional COMMON save.
-          WRITE (6,65)  TTOT, CPUTOT/60.0, ERRTOT, DETOT
+          WT = WTOT/3600.0
+          WRITE (6,65)  TTOT, CPUTOT/60.0, ERRTOT, DETOT, WT
    65     FORMAT (//,9X,'END RUN',3X,'TIME =',F8.1,'  CPUTOT =',F7.1,
-     &                  '  ERRTOT =',F10.6,'  DETOT =',F10.6)
+     &                  '  ERRTOT =',F10.6,'  DETOT =',F10.6,
+     &                  '  WTOT =',F7.1)
           IF (KZ(1).GT.0.AND.NSUB.EQ.0) CALL MYDUMP(1,1)
+*
+*       Close the library and stop.
+          CALL GPUNB_CLOSE
           STOP
       END IF
 *

@@ -1,4 +1,4 @@
-      SUBROUTINE GPUCOR(I,XI,XIDOT,FREG,FDR)
+      SUBROUTINE GPUCOR(I,XI,XIDOT,FREG,FDR,KLIST)
 *
 *
 *       Regular GPU force corrector.
@@ -9,10 +9,12 @@
      &                LISTC(LMAX)
       REAL*8  XI(3),XIDOT(3),FIRR(3),FREG(3),DV(3),FD(3),FDR(3)
       REAL*8  FRX(3),FDX(3)
+      INTEGER KLIST(LMAX),JJLIST(2*LMAX)
 *
 *
+*      FXI = FI(1,I)
 *       Set neighbour number, time-step & choice of central distance.
-      NNB = ILIST(1)
+      NNB = KLIST(1)
       NNB0 = LIST(1,I)
       DTR = TIME - T0R(I)
       IRSKIP = 0
@@ -30,26 +32,25 @@
 *   1 RCRIT2 = 1.59*RS2
 *
 *       Initialize scalars for forces & derivatives.
-      DO 5 K = 1,3
-          FIRR(K) = 0.0D0
-          FD(K) = 0.0
-    5 CONTINUE
+*     DO 5 K = 1,3
+*         FIRR(K) = 0.0D0
+*         FD(K) = 0.0
+*   5 CONTINUE
 *
 *       Choose appropriate force loop for single particle or c.m. body.
       IF (I.GT.N) THEN
 *       Treat unperturbed KS in the single particle approximation.
           I1 = 2*(I - N) - 1
           IF (LIST(1,I1).GT.0) THEN
-*       Obtain irregular force on c.m. particle and add other c.m.'s to FREG.
-              NNB = NNB + 1
-              CALL CMFREG(I,RS2,NNB,FIRR,FREG,FD,FDR)
+*       Obtain irregular force on c.m. particle.
+              CALL CMFIRR(I,I1,NNB,KLIST,FIRR,FD)
               GO TO 20
           END IF
       END IF
 *
 *       Form irregular force from GPU neighbour list (exclude pert c.m.).
 *     DO 10 L = 2,NNB+1
-*         J = ILIST(L)
+*         J = KLIST(L)
 *         A1 = X(1,J) - XI(1)
 *         A2 = X(2,J) - XI(2)
 *         A3 = X(3,J) - XI(3)
@@ -73,21 +74,29 @@
 *  10 CONTINUE
 *
 *       Increase counter temporarily for consistency with standard scheme.
-      NNB = NNB + 1
-*
+      NNB2 = NNB + 1
+   12 IF (KLIST(NNB2).LE.N) GO TO 13
+      NNB2 = NNB2 - 1
+      IF (NNB2.GT.1) GO TO 12
+      DO K = 1,3
+          FIRR(K) = 0.0
+          FD(K) = 0.0
+      END DO
+*       Include special case of only c.m. neighbours.
+      GO TO 14
 *       Replace irregular force loop by Keigo's routine in C++ with SSE.
-      CALL CNBINT(I,X,XDOT,BODY,NNB,ILIST(2),FIRR,FD)
+   13 CALL CNBINT(I,X,XDOT,BODY,NNB2,KLIST(2),FIRR,FD)
 *
-*       Add any contributions from regularized c.m. particles (ignore I > N).
-      IF (NPAIRS.GT.0) THEN
-          CALL CMFREG2(I,RS2,NNB,XI,XIDOT,FIRR,FREG,FD,FDR)
+*       Add corrections from regularized c.m. particles (ignore I > N).
+   14 IF (NNB2.LE.NNB) THEN
+          CALL CMFIRR2(I,NNB2,KLIST,XI,XIDOT,FIRR,FD)
       END IF
 *
 *       Include treatment for regularized subsystem.
       IF (NCH.GT.0) THEN
 *       Distinguish between chain c.m. and any other particle.
           IF (NAME(I).EQ.0) THEN
-              CALL CHFIRR(I,0,XI,XIDOT,FIRR,FD)
+              CALL CHFIRR(I,1,XI,XIDOT,FIRR,FD)
           ELSE
 *       Search the chain perturber list for #I.
               NP1 = LISTC(1) + 1
@@ -100,7 +109,7 @@
                   END IF
    15         CONTINUE
           END IF
-      END IF 
+      END IF
 *
 *       Check optional interstellar clouds.
    20 IF (KZ(13).GT.0) THEN
@@ -125,6 +134,7 @@
               WDOT = 0.0
               W2DOT = 0.0
 *             W3DOT = 0.0
+*       Integrate Taylor series for V*P using final values.
               DO 24 K = 1,3
                   PX = FREG(K) - FRX(K)
                   DPX = FDR(K) - FDX(K)
@@ -132,13 +142,18 @@
                   W2DOT = W2DOT + (FREG(K) + FIRR(K))*PX + XIDOT(K)*DPX
 *                 W3DOT = W3DOT + 2.0*(FREG(K) + FIRR(K))*DPX +
 *    &                            (FDR(K) + FD(K))*PX
+*       Second-order term derived by Douglas Heggie (Aug/03).
    24         CONTINUE
-*       Note: second-order term derived by Douglas Heggie (Aug/03).
+*       Accumulate tidal energy change for general galactic potential.
+*             ETIDE = ETIDE - BODY(I)*((ONE6*W3DOT*DTR - 0.5*W2DOT)*DTR
+*    &                                                 + WDOT)*DTR
+!$omp critical
+              ETIDE = ETIDE + BODY(I)*(0.5*W2DOT*DTR - WDOT)*DTR
+!$omp end critical
+*       Note: integral of Taylor series for V*P using final values.
           END IF
       END IF
 *
-*       Reduce counter to represent actual membership.
-      NNB = NNB - 1
 *       Check case of zero neighbour number.
       IF (NNB.EQ.0) THEN
 *       Assume small mass at centre to avoid zero irregular force.
@@ -151,10 +166,12 @@
               FD(K) = FD(K) - (XIDOT(K) - RDOT*XI(K))*FIJ
    25     CONTINUE
 *       Modify neighbour sphere gradually but allow encounter detection.
-          IF (RDOT.GT.0.0) THEN
+          IF (RDOT.GT.0.0.AND.RI2.GT.RH2) THEN
               RS(I) = MAX(0.75*RS(I),0.1*RSCALE)
           ELSE
               RS(I) = 1.1*RS(I)
+*       Increase RS significantly in the inner region.
+              IF (RS(I)**2.LT.0.01*RH2) RS(I) = 2.0*RS(I)
           END IF
           NBVOID = NBVOID + 1
           IRSKIP = 1
@@ -163,11 +180,11 @@
 *         GO TO 1
       END IF
 *
-*       Restrict neighbour number < NNBMAX to permit one normal addition.
-      IF (NNB.LT.NNBMAX) GO TO 40
+*       Restrict neighbour number < NBMAX to permit one normal addition.
+      IF (NNB.LT.NBMAX) GO TO 40
 *
 *       Reduce search radius by cube root of 90 % volume factor.
-   30 NNB2 = 0.9*NNBMAX
+   30 NNB2 = 0.9*NBMAX
       A1 = FLOAT(NNB2)/FLOAT(NNB)
       IF (RS(I).GT.5.0*RSCALE) THEN
           A1 = MIN(5.0*A1,0.9D0)
@@ -177,9 +194,9 @@
       RCRIT2 = 1.59*RS2
       RS(I) = SQRT(RS2)
       NNB1 = 0
-*   
+*  
       DO 35 L = 1,NNB
-          J = ILIST(L+1)
+          J = KLIST(L+1)
           IF (L + NNB2.GT.NNB + NNB1) GO TO 32
 *       Sum of neighbours (NNB1) & those left (NNB+1-L) set to NNB2.
           A1 = X(1,J) - XI(1)
@@ -199,7 +216,7 @@
           IF (RIJ2.GT.RS2) GO TO 34
 *
    32     NNB1 = NNB1 + 1
-          JLIST(NNB1+1) = J
+          JJLIST(NNB1+1) = J
           GO TO 35
 *
 *       Subtract neighbour force included above and add to regular force.
@@ -220,16 +237,16 @@
 *
 *       Copy back to original list.
       DO 38 L = 2,NNB1+1
-          ILIST(L) = JLIST(L)
+          KLIST(L) = JJLIST(L)
    38 CONTINUE
       NNB = NNB1
       NBFULL = NBFULL + 1
 *       See whether to reduce NNB further.
-      IF (NNB.GE.NNBMAX) GO TO 30
+      IF (NNB.GE.NBMAX) GO TO 30
 *
 *       Stabilize NNB between ZNBMIN & ZNBMAX by square root of contrast.
    40 A3 = ALPHA*SQRT(FLOAT(NNB)*RS(I))/RS2
-      A3 = MIN(A3,ZNBMAX) 
+      A3 = MIN(A3,ZNBMAX)
       NBP = A3
 *       Reduce predicted membership slowly outside half-mass radius.
       IF (RI2.GT.RH2) THEN
@@ -250,12 +267,12 @@
       END IF
 *
 *       See whether neighbour radius of c.m. body should be increased.
-      IF (I.GT.N.AND.NNB.LT.ZNBMAX) THEN
+      IF (I.GT.N.AND.NNB.LT.NBMAX.AND.RI2.LT.RH2) THEN
 *       Set perturber range (soft binaries & H > 0 have short duration).
           A2 = 100.0*BODY(I)/ABS(H(I-N))
-*       Stabilize NNB on ZNBMAX if too few perturbers.
+*       Stabilize NNB on NBMAX if too few perturbers.
           IF (A2.GT.RS(I)) THEN
-              A3 = MAX(1.0 - FLOAT(NNB)/ZNBMAX,0.0D0)
+              A3 = MAX(1.0 - FLOAT(NNB)/FLOAT(NBMAX),0.0D0)
 *       Modify volume ratio by approximate square root factor.
               A4 = 1.0 + 0.5*A3
           END IF
@@ -282,6 +299,11 @@
           END IF
 *       Skip modification for small changes (avoids oscillations in RS).
           IF (ABS(A1 - 1.0D0).GT.0.003) THEN
+*       Restrict change in RS within 25 % of RI using approx (RS-RI)*(RS+RI).
+              IF (RS(I)**2.GT.RI2.AND.RS(I)**2.LT.2.0*RI2.AND.
+     &            NNB.GT.5) THEN
+                  A1 = SQRT(A1)
+              END IF
               RS(I) = A1*RS(I)
           END IF
 *       Employ extra reduction for inward motion and large membership.
@@ -294,10 +316,10 @@
       END IF
 *
 *       Calculate the radial velocity with respect to at most 3 neighbours.
-      IF (NNB.LE.3.AND.RI2.LT.9.0*RH2) THEN
+      IF (NNB.LE.3.AND.RI2.GT.RH2) THEN
           A1 = 2.0*RS(I)
           DO 45 L = 1,NNB
-              J = ILIST(L+1)
+              J = KLIST(L+1)
               RIJ = SQRT((XI(1) - X(1,J))**2 + (XI(2) - X(2,J))**2 +
      &                                         (XI(3) - X(3,J))**2)
               RSDOT = ((XI(1) - X(1,J))*(XIDOT(1) - XDOT(1,J)) +
@@ -309,6 +331,8 @@
 *
 *       Increase neighbour sphere if all members are leaving inner region.
           RS(I) = MAX(A1,1.1*RS(I))
+*       Impose minimum size to include wide binaries (cf. NNB = 0 condition).
+          RS(I) = MAX(0.1*RSCALE,RS(I))
       END IF
 *
 *       Check minimum neighbour sphere since last output (skip NNB = 0).
@@ -316,28 +340,19 @@
 *
 *       Check optional procedures for adding neighbours.
       IF ((KZ(37).EQ.1.AND.LISTV(1).GT.0).OR.KZ(37).GT.1) THEN
-          CALL CHECKL(I,NNB,XI,XIDOT,RS2,FIRR,FREG,FD,FDR)
+          CALL CHECKL2(I,NNB,KLIST,XI,XIDOT,RS2,FIRR,FREG,FD,FDR)
       END IF
 *
 *       Find loss or gain of neighbours at the same time.
    50 NBLOSS = 0
       NBGAIN = 0
 *
-*       Accumulate tidal energy change for general galactic potential.
-      IF (KZ(14).EQ.3) THEN
-*       Note: Taylor series at end of interval with negative argument.
-*         ETIDE = ETIDE - BODY(I)*((ONE6*W3DOT*DTR - 0.5*W2DOT)*DTR +
-*    &                                                   WDOT)*DTR
-          ETIDE = ETIDE + BODY(I)*(0.5*W2DOT*DTR - WDOT)*DTR
-*       Note: integral of Taylor series for V*P using final values.
-      END IF
-*
 *       Check case of zero old membership (NBGAIN = NNB specifies net gain).
       IF (NNB0.EQ.0) THEN
           NBGAIN = NNB
 *       Copy current neighbours for use by FPCORR (NNB = 0 has GO TO 50).
           DO 52 L = 1,NNB
-              JLIST(NNB0+L) = ILIST(L+1)
+              JJLIST(NNB0+L) = KLIST(L+1)
    52     CONTINUE
           DF2 = 1.0
           FI2 = 0.0
@@ -363,17 +378,17 @@
       JMIN = 0
       L = 2
       LG = 2
-*       Set termination value in ILIST(NNB+2) and save last list member.
-      ILIST(NNB+2) = NTOT + 1
-      ILIST(1) = LIST(NNB0+1,I)
+*       Set termination value in KLIST(NNB+2) and save last list member.
+      KLIST(NNB+2) = NTOT + 1
+      KLIST(1) = LIST(NNB0+1,I)
 *
 *       Compare old and new list members in locations L & LG.
-   56 IF (LIST(L,I).EQ.ILIST(LG)) GO TO 58
+   56 IF (LIST(L,I).EQ.KLIST(LG)) GO TO 58
 *
 *       Check whether inequality means gain or loss.
-      IF (LIST(L,I).GE.ILIST(LG)) THEN
+      IF (LIST(L,I).GE.KLIST(LG)) THEN
           NBGAIN = NBGAIN + 1
-          JLIST(NNB0+NBGAIN) = ILIST(LG)
+          JJLIST(NNB0+NBGAIN) = KLIST(LG)
 *       Note number of neighbour losses can at most be NNB0.
           L = L - 1
 *       Search the same location again after increasing L below.
@@ -387,14 +402,14 @@
      &             (XI(3) - X(3,J))*(XIDOT(3) - XDOT(2,J))
               IF (RD*DTR.GT.ETAR*RS(I)**2) THEN
                   NBLOSS = NBLOSS + 1
-                  JLIST(NBLOSS) = J
-                  IF (STEP(J).LT.SMIN) JMIN = J
+                  JJLIST(NBLOSS) = J
+                  IF (STEP(J).LT.0.1*DTMIN) JMIN = J
                END IF
           ELSE
               NBLOSS = NBLOSS + 1
-              JLIST(NBLOSS) = J
-*       Check SMIN step indicator (rare case permits fast skip below).
-              IF (STEP(J).LT.SMIN) JMIN = J
+              JJLIST(NBLOSS) = J
+*       Check small step indicator (rare case permits fast skip below).
+              IF (STEP(J).LT.0.1*DTMIN) JMIN = J
           END IF
       END IF
 *
@@ -407,35 +422,37 @@
       ELSE IF (LG.LE.NNB) THEN
           LG = LG + 1
           LIST(L,I) = NTOT + 1
-*       Last location of list holds termination value (saved in ILIST(1)).
+*       Last location of list holds termination value (saved in KLIST(1)).
           GO TO 56
       END IF
 *
 *       See whether any old neighbour with small step should be retained.
       IF (JMIN.EQ.0) GO TO 70
+*       Skip modifying FIRR on host for dangerous cases (close encounter).
+      IF (STEP(I).LT.DTMIN) GO TO 70
 *
       K = 1
-   60 IF (NNB.GT.NNBMAX.OR.I.GT.N) GO TO 70
-      J = JLIST(K)
-*       A single regularized component will be replaced by the c.m.
-      IF (STEP(J).GT.SMIN.OR.J.LT.IFIRST.OR.J.GT.N) GO TO 68
-*       Retain old neighbour inside 2*RS to avoid large correction terms.
+   60 IF (NNB.GT.NBMAX.OR.I.GT.N) GO TO 70
+      J = JJLIST(K)
+*       Skip single regularized component (replaced by c.m.) and also c.m.
+      IF (STEP(J).GT.0.1*DTMIN.OR.J.LT.IFIRST.OR.J.GT.N) GO TO 68
+*       Retain old neighbour inside 1.4*RS to avoid large correction terms.
       RIJ2 = (XI(1) - X(1,J))**2 + (XI(2) - X(2,J))**2 +
      &                             (XI(3) - X(3,J))**2
-      IF (RIJ2.GT.4.0*RS2) GO TO 68
+      IF (RIJ2.GT.2.0*RS2) GO TO 68
 *
       L = NNB + 1
-   62 IF (ILIST(L).LT.J) GO TO 64
-      ILIST(L+1) = ILIST(L)
+   62 IF (KLIST(L).LT.J) GO TO 64
+      KLIST(L+1) = KLIST(L)
       L = L - 1
       IF (L.GT.1) GO TO 62
 *
 *       Save index of body #J and update NNB & NBLOSS.
-   64 ILIST(L+1) = J
+   64 KLIST(L+1) = J
       NNB = NNB + 1
       NBLOSS = NBLOSS - 1
 *       Restore last old neighbour in case NBLOSS = 0 at end of search.
-      LIST(NNB0+1,I) = ILIST(1)
+      LIST(NNB0+1,I) = KLIST(1)
       NBSMIN = NBSMIN + 1
 *
 *       Perform correction to irregular and regular force components.
@@ -467,7 +484,7 @@
 *       Remove body #J from JLIST unless it is the last or only member.
       IF (K.GT.NBLOSS) GO TO 70
       DO 66 L = K,NBLOSS
-          JLIST(L) = JLIST(L+1)
+          JJLIST(L) = JJLIST(L+1)
    66 CONTINUE
 *       Index of last body to be moved up is L = NBLOSS + 1.
       K = K - 1
@@ -483,7 +500,6 @@
       DTSQ12 = ONE12*DTSQ
       DTR13 = ONE3*DTR
       T0R(I) = TIME
-*     FX = FI(1,I)
 *
 *       Suppress corrector for DTR/STEP > 100 and large derivative change.
       IF (DTR.GT.100.0*STEP(I)) THEN
@@ -548,13 +564,13 @@
 *       Check optional force polynomial corrections due to neighbour changes.
       IF (KZ(38).GT.0) THEN
           IF (KZ(38).EQ.1) THEN
-              CALL FPCORR(I,NBLOSS,NBGAIN,XI,XIDOT)
-          ELSE IF (KZ(38).EQ.2.AND.DF2.GT.0.0004*FR2) THEN
-              CALL FPCORR(I,NBLOSS,NBGAIN,XI,XIDOT)
-          ELSE IF (NBLOSS.GT.0) THEN
+              CALL FPCORR2(I,NBLOSS,NBGAIN,JJLIST,XI,XIDOT)
+          ELSE IF (KZ(38).EQ.2.AND.DF2.GT.0.0001*FR2) THEN
+              CALL FPCORR2(I,NBLOSS,NBGAIN,JJLIST,XI,XIDOT)
+          ELSE IF (NBLOSS.GT.0.AND.KZ(38).EQ.3) THEN
 *       Ignore corrections for gains when treating the most critical losses.
               NBGAIN = 0
-              CALL FPCORR(I,NBLOSS,NBGAIN,XI,XIDOT)
+              CALL FPCORR2(I,NBLOSS,NBGAIN,JJLIST,XI,XIDOT)
           END IF
       END IF
 *
@@ -563,7 +579,7 @@
 *       Note NBLOSS+NBGAIN is usually positive for KZ(38) = 1.
           LIST(1,I) = NNB
           DO 80 L = 2,NNB+1
-              LIST(L,I) = ILIST(L)
+              LIST(L,I) = KLIST(L)
    80     CONTINUE
           NBFLUX = NBFLUX + NBLOSS + NBGAIN
       END IF
@@ -572,15 +588,20 @@
 *       STEPR = (ETAR*(F*F2DOT + FDOT**2)/(FDOT*F3DOT + F2DOT**2))**0.5.
       TTMP = TSTEP(FREG,FDR,D2R(1,I),D3R(1,I),ETAR)
 *
-*       Impose a smooth step reduction inside compact core.
-      IF (NC.LT.50.AND.RI2.LT.RC2) THEN
-          TTMP = TTMP*MIN(1.0D0,0.5D0*(1.0D0 + RI2*RC2IN))
+*       Impose a smooth step reduction inside compact core (superseded).
+*     IF (NC.LT.50.AND.RI2.LT.RC2) THEN
+*         TTMP = TTMP*MIN(1.0D0,0.5D0*(1.0D0 + RI2*RC2IN))
+*     END IF
+*       Avoid small steps near the centre (extra condition for DTR < SMIN).
+      IF (RI2.LT.4.0*RC2.OR.
+     &   (TTMP.LT.SMIN.AND.FR2.LT.(BODYM/RS2)**2)) THEN
+          TTMP = MAX(1.0D-04*RS(I),TTMP)
       END IF
       DT0 = TTMP
 *
 *       Select discrete value (increased by 2, decreased by 2 or unchanged).
       IF (TTMP.GT.2.0*STEPR(I)) THEN
-          IF (DMOD(TIME,2.0D0*DTR).EQ.0.0D0) THEN 
+          IF (DMOD(TIME,2.0D0*DTR).EQ.0.0D0) THEN
               TTMP = MIN(2.0*DTR,SMAX)
 *       Include factor 4 increase for rare cases of too small regular steps.
               IF (DT0.GT.10.0*TTMP.AND.
@@ -588,7 +609,7 @@
                   TTMP = MIN(2.0*TTMP,SMAX)
               END IF
           ELSE
-              TTMP = STEPR(I) 
+              TTMP = STEPR(I)
           END IF
       ELSE IF (TTMP.LT.DTR) THEN
           TTMP = 0.5*DTR
@@ -613,7 +634,7 @@
 *
 *       Include bug trap for irregular force difference with no NNB change.
 *     IF (NBLOSS+NBGAIN.EQ.0) THEN
-*         ERR = ABS(FIRR(1)-FX)
+*         ERR = ABS(FIRR(1)-FXI)
 *         IF (ERR.GT.1.0D-07) WRITE (6,560) NAME(I),NNB,ERR,FIRR(1),
 *    &                        STEP(I),TTMP
 * 560     FORMAT (' BUG TRAP    NAM NB DFX FX SI SR ',I6,I5,1P,4E10.2)
@@ -633,9 +654,8 @@
           NICONV = NICONV + 1
           GO TO 110
       END IF
-      NSTEPR = NSTEPR + 1
+*     NSTEPR = NSTEPR + 1
 *
       RETURN
 *
       END
-
