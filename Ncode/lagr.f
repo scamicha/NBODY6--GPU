@@ -140,7 +140,7 @@
           WRITE (28,80)  TTOT, (AVM(K), RM(K),K=1,LX)
    80     FORMAT (' PAIRWISE <M> <RM> (T =',F7.1,'): ',
      &                                13(0P,F7.3,1P,E10.2))
-          CALL FLUSH(6)
+          CALL FLUSH(28)
       END IF
 *
       RETURN

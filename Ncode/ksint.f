@@ -73,6 +73,37 @@
               END IF
           END IF
           CALL UNPERT(IPAIR)
+*
+*       Try re-initialize chain WD/BH system after dormant KS (#11 only).
+          IF (KZ(11).NE.0.AND.NCH.EQ.0.AND.LIST(1,I1).GT.0) THEN
+              IF (MIN(KSTAR(I1),KSTAR(I2)).GE.10) THEN
+                  SEMI = -0.5*BODY(I)/H(IPAIR)
+                  WRITE (6,222)  TIME+TOFF, NAME(JCLOSE), KSTAR(I1),
+     &                           KSTAR(I2), LIST(1,I1), GAMMA(IPAIR),
+     &                           SEMI
+222              FORMAT (' ACTIVATE CHAIN    T NMJ K* NP G A  ',
+     &                                        F9.1,I7,3I4,1P,2E10.2)
+                  KSPAIR = IPAIR
+                  KS2 = 0
+*       Include case of binary as dominant perturber.
+                  IF (JCLOSE.GT.N) THEN
+                      KS2 = JCLOSE - N
+                      IF (KS2.GT.KSPAIR) KS2 = KS2 - 1
+                      JCOMP = JCLOSE
+                      JP = JCLOSE - N
+                      WRITE (6,223)  KSPAIR, KS2, JCLOSE, GAMMA(JP-N)
+  223                 FORMAT (' BINARY PERT    KSP KS2 JCLOSE GJP ',
+     &                                         2I4,I7,1P,E10.2)
+                  ELSE
+*       Avoid JCOMP > N & JCLOSE < N for spurious CALL KSTERM in DELAY.
+                      JCOMP = 0
+                  END IF
+                  IPHASE = 8
+*       Save KS parameters until end of block-step (JCMAX=0: no extra pert).
+                  CALL DELAY(1,KS2)
+                  JCMAX = 0
+              END IF
+          END IF
           GO TO 100
       END IF
 *
@@ -118,7 +149,7 @@
               CALL IMPACT(I)
               IF (IPHASE.GT.0) GO TO 100
           END IF
-      ELSE IF (ITERM.EQ.2) THEN
+      ELSE IF (ITERM.EQ.2.AND.KZ(11).EQ.0) THEN
           IQ = .TRUE.
           GO TO 20
       ELSE
@@ -298,7 +329,7 @@
 *       Check updating of R0 for newly hardened binary orbit.
               IF (HI.LT.-ECLOSE) THEN
                   SEMI = -0.5*BODY(I)/HI
-                  R0(IPAIR) = MAX(RMIN,2.0D0*SEMI) 
+                  R0(IPAIR) = MAX(RMIN,2.0D0*SEMI)
                   GO TO 70
               END IF
           END IF
@@ -530,7 +561,7 @@
 *       Update termination length scale in case of initial soft binary.
           EB = BODY(I1)*BODY(I2)*HI*BODYIN
           IF (EB.LT.EBH) R0(IPAIR) = MAX(RMIN,2.0*SEMI)
-      ELSE 
+      ELSE
           ECC2 = (1.0 - RI/SEMI)**2 + TDOT2(IPAIR)**2/(BODY(I)*SEMI)
           ECC = SQRT(ECC2)
           RP = SEMI*(1.0 - ECC)*(1.0 - 2.0*GI)
@@ -545,15 +576,6 @@
           END IF
 *       Assess the stability inside critical pericentre (safety factor 1.04).
           IF (RP.LT.1.04*R0(IPAIR)) THEN
-              EOUT = ECC
-*       Increase tolerance near sensitive stability boundary (RM 10/2008).
-              IF (EOUT.GT.0.90) THEN
-                  DE = 0.5*(1.0 - EOUT)
-                  DE = MIN(DE,0.01D0)
-*       Add extra amount 0.011 to avoid switching.
-                  IF (ECC.GT.0.9) DE = DE + 0.011
-                  EOUT = EOUT - DE
-              END IF
 *       Note: assessment needs to use same eccentricity as for acceptance.
               CALL ASSESS(IPAIR,IM,EOUT,SEMI,ITERM)
               IF (ITERM.GT.0) THEN
@@ -634,7 +656,7 @@
 *
 *       See whether a massive BH subsystem can be selected.
       IF (KZ(24).EQ.0) GO TO 88
-      IF (NAME(I).GT.0.AND.BODY(I).GT.0.001.AND.NCH.EQ.0.AND.
+      IF (NAME(I).GT.0.AND.BODY(I).GT.0.0003.AND.NCH.EQ.0.AND.
      &    KZ(11).NE.0.AND.LIST(1,I1).LE.5.AND.SEMI.LT.0.5*RMIN) THEN
 *
 *       Check optional BH condition (prevents mass-loss complications).
@@ -657,22 +679,28 @@
      &           (RIJ2.LT.4.0*SEMI**2)) THEN
                   IF (RIJ2.LT.RX2) THEN
                       RX2 = RIJ2
+                      RRD = RD
                       JCLOSE = J
                   END IF
               END IF
    85     CONTINUE
           IF (JCLOSE.GT.0) THEN
+              RX = SQRT(RX2)
+*       Limit energy of triple system (< 50*EBH) using radial velocity.
+              ZMU = BODY(I)*BODY(JCLOSE)/(BODY(I) + BODY(JCLOSE))
+              EBT = EB + ZMU*(0.5*(RRD/RX)**2-(BODY(I)+BODY(JCLOSE)/RX))
+              IF (EBT.GT.50.0*EBH) GO TO 88
               WRITE (6,86)  TTOT, NAME(JCLOSE), LIST(1,I1), STEP(I),
-     &                      STEP(JCLOSE), SEMI, SQRT(RX2), GI
-   86         FORMAT (' NEW CHAIN   T NMJ NP STEPI STEPJ A RIJ GI ',
-     &                              F9.3,I6,I4,1P,5E10.2)
-              CALL FLUSH(3)
+     &                      STEP(JCLOSE), SEMI, RX, GI, EBT
+   86         FORMAT (' NEW CHAIN   T NMJ NP STEPI STEPJ A RIJ GI EBT ',
+     &                              F9.3,I6,I4,1P,6E10.2)
+              CALL FLUSH(6)
 *       Initiate chain regularization directly (see IMPACT).
               JCOMP = JCLOSE
               JCMAX = 0
               KSPAIR = IPAIR
               IPHASE = 8
-              EBCH0 = BODY(I1)*BODY(I2)*H(IPAIR)/BODY(I)
+              EBCH0 = EB
               CALL DELAY(1,0)
               GO TO 100
           END IF

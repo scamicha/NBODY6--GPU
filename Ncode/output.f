@@ -46,6 +46,7 @@
       DE = DE/MAX(ZKIN,ABS(ETOT))
 *       Save sum of relative energy error for main output and accumulate DE.
       ERROR = ERROR + DE
+      VIR = POT
 *
 *       Find density centre & core radius (Casertano & Hut, Ap.J. 298, 80).
       IF (N.GE.20.AND.KZ(29).EQ.0) THEN

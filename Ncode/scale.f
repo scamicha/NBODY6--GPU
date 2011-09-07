@@ -8,6 +8,7 @@
       REAL*8  RSAVE(3,NMAX),VSAVE(3,NMAX),BSAVE(NMAX)
       real*8 G, M_sun, R_sun, pc, Km, Kmps
       real*8 mscale, lscale, vscale
+      SAVE RSAVE,VSAVE,BSAVE
 *
 *       Define physical constants (consistent with IAU & routine UNITS).
       G = 6.6743D-08
@@ -342,7 +343,7 @@
    77     CONTINUE
       END IF
 *
-*       Check whether to include rotation (VXROT = 0 in standard case). 
+*       Check whether to include rotation (VXROT = 0 in standard case).
       IF (VXROT.GT.0.0D0) THEN
 *
 *       Set angular velocity for retrograde motion (i.e. star clusters).
@@ -368,7 +369,7 @@
       END IF
 *
 *       Check for writing initial conditions (physical units) on unit #99.
-      IF (KZ(22).EQ.-1) THEN
+      IF (KZ(22).EQ.-1.OR.KZ(22).EQ.5) THEN
           DO 86 I = 1,N
               write (99,84)  BODY(I)*mscale, (X(K,I)*lscale,K=1,3),
      &                       (XDOT(K,I)*vscale,K=1,3)
@@ -388,7 +389,7 @@
       TCR0 = TCR
 *
 *       Obtain approximate half-mass radius after scaling.
-      RSCALE = 0.5*ZMASS**2/(SX*POT)
+      RSCALE = 0.5*ZMASS**2/POT
 *       Set square radius of reflecting sphere (used with option 29).
       RSPH2 = (RSPH2*RSCALE)**2
 *       Form equilibrium rms velocity (temporarily defined as VC).

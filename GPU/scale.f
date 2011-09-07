@@ -389,7 +389,7 @@
       TCR0 = TCR
 *
 *       Obtain approximate half-mass radius after scaling.
-      RSCALE = 0.5*ZMASS**2/(SX*POT)
+      RSCALE = 0.5*ZMASS**2/POT
 *       Set square radius of reflecting sphere (used with option 29).
       RSPH2 = (RSPH2*RSCALE)**2
 *       Form equilibrium rms velocity (temporarily defined as VC).
