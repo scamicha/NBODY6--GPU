@@ -1,4 +1,4 @@
-      SUBROUTINE IMF2(BODY10,BODYN)
+UBROUTINE IMF2(BODY10,BODYN)
 *
 *
 *       Mass function for binaries & single stars.
@@ -42,7 +42,7 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
               UM = BODY10
               ZM = IMFBD(XX,LM,UM)
           END IF
-*       Include possibility of setting non-MS types. 
+*       Include possibility of setting non-MS types.
           KSTAR(I) = 1
 *
 *       See whether the mass falls within the specified range.
@@ -128,10 +128,9 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
 *TEST> C.O. 20.12.2010
 *       Create local copies of phase space vector.
           DO 55 K = 1,3
-              COPYX(K,NS) = X(K,2*nbin0 + l)
-              COPYV(K,NS) = XDOT(K,2*nbin0 + l)
+              COPYX(K,NS) = X(K,NBIN0 + l)
+              COPYV(K,NS) = XDOT(K,NBIN0 + l)
    55     CONTINUE
-*         JLIST(NS) = NBIN0 + L
           JLIST(NS) = NS
    60 CONTINUE
 *
@@ -148,8 +147,8 @@ c      DATA  G1,G2,G3,G4  /0.28,1.14,0.010,0.1/
 *       Recover the corresponding coordinates and velocities.
           J = JLIST(I)
           DO 65 K = 1,3
-              X(K,N-I+1+NBIN0) = COPYX(K,J)
-              XDOT(K,N-I+1+NBIN0) = COPYV(K,J)
+              X(K,N-I+1) = COPYX(K,J)
+              XDOT(K,N-I+1) = COPYV(K,J)
    65     CONTINUE
    70 CONTINUE
 *

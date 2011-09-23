@@ -118,9 +118,9 @@
       END IF
 *
       IF (KZ(7).GE.3.AND.TIME.GE.TNEXT) THEN
-          WRITE (12,50)  TTOT, (LOG10(RLAGR(K)),K=1,LX)
+          WRITE (14,50)  TTOT, (LOG10(RLAGR(K)),K=1,LX)
    50     FORMAT ('  LAGR:  ',F7.1,13F7.3)
-          CALL FLUSH(12)
+          CALL FLUSH(14)
       END IF
 *
       IF (KZ(7).EQ.5.AND.TIME.GE.TNEXT) THEN

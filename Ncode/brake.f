@@ -14,7 +14,7 @@
       I1 = 2*IPAIR - 1
       I2 = I1 + 1
       I = N + IPAIR
-      DSEP = DSEP/SU 
+      DSEP = DSEP/SU
 *
 *       Set mass and radius of each star in solar units.
       M1 = BODY(I1)*ZMBAR
@@ -26,9 +26,9 @@
       SEMI = -0.5D0*BODY(I)/H(IPAIR)
       ECC2 = (1.0 - R(IPAIR)/SEMI)**2 + TDOT2(IPAIR)**2/(BODY(I)*SEMI)
       ECC = SQRT(ECC2)
-      SEMI1 = SEMI - DSEP 
+      SEMI1 = SEMI - DSEP
 *
-*      Check for circularized case. 
+*      Check for circularized case.
       IF(KSTAR(I).LT.10.AND.ECC1.LT.0.002)THEN
          ECC1 = 0.001D0
          KSTAR(I) = 10
@@ -42,7 +42,7 @@
       IF (KSX.GE.13.AND.KZ(28).GT.0) THEN
          RCOAL = 6.0*BODY(I)/CLIGHT**2
       ELSE
-         RCOAL = 100.0
+         RCOAL = R1 + R2
       END IF
       IF (KZ(28).GT.1.AND.DSEP.GT.0.0) THEN
          WRITE (6,5)  TTOT, NAME(I1), KSX, ECC, SEMI*SU, DSEP/SEMI
@@ -62,8 +62,8 @@
       IF(DSEP.EQ.0.D0) GOTO 50
 *
 *       Include safety test on new semi-major axis.
-      RCHCK = MIN(RADIUS(I1),RADIUS(I2)) 
-      IF(SEMI1.LT.RCHCK) SEMI1 = RCHCK 
+      RCHCK = MIN(RADIUS(I1),RADIUS(I2))
+      IF(SEMI1.LT.RCHCK) SEMI1 = RCHCK
 *
 *       Transform to pericentre (R > A & unperturbed).
 *     IF(R(IPAIR).GT.SEMI.AND.LIST(1,I1).EQ.0)THEN
@@ -79,7 +79,7 @@
 *       Update binding energy and collision energy.
       HI = H(IPAIR)
       H(IPAIR) = -0.5*BODY(I)/SEMI1
-      ZMU = BODY(I1)*BODY(I2)/BODY(I) 
+      ZMU = BODY(I1)*BODY(I2)/BODY(I)
       ECOLL = ECOLL + ZMU*(HI - H(IPAIR))
       EGRAV = EGRAV + ZMU*(HI - H(IPAIR))
 *
