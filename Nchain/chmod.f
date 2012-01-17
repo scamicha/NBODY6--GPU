@@ -196,9 +196,12 @@
     9             FORMAT (' ABSORB INERT    NM G A RIJ R ',
      &                                      I6,F6.2,1P,6E10.2)
 *       Switch off option #26 temporarily for routine SETSYS.
+                  KZ26 = KZ(26)
                   KZ(26) = 1
+                  KZ(27) = 1
                   CALL ABSORB(ISUB)
-                  KZ(26) = 2
+                  KZ(26) = KZ26
+                  KZ(27) = KZ27
                   KCASE = 1
                   GO TO 50
               END IF

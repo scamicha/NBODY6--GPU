@@ -77,6 +77,8 @@
 *
 *       Check addition of differential logarithmic potential.
           IF (V02.GT.0.0D0) THEN
+              RI2 = RI2 + RL2
+              RG2 = RG2 + RL2
               ET = ET + 0.5*V02*(LOG(RI2) - LOG(RG2))
           END IF
 *       Form the differential potential energy due to tides.

@@ -21,7 +21,7 @@
 #define MAX_CPU 8
 #define MAX_GPU 4
 
-// for clarity, for myself
+// for clearity, for myself
 #define __out
 
 #define PROFILE
@@ -529,7 +529,7 @@ void GPUNB_regf(
 		double jrk[][3],
 		double pot[],
 		int lmax,
-		int nbmax,
+		int nnbmax,
 		int *listbase){
 	assert(is_open);
 
@@ -639,9 +639,9 @@ void GPUNB_regf(
 			}
 			// assert(!overflow);
 			nnb += nnb_part;
-			if(nnb > nbmax){
+			if(nnb > nnbmax){
 				overflow = true;
-				fprintf(stderr, "!!!overflow : i=%d, id=%d, nnb_tot =%d, nnbmax=%d\n", i, id, nnb, nbmax);
+				fprintf(stderr, "!!!overflow : i=%d, id=%d, nnb_tot =%d, nnbmax=%d\n", i, id, nnb, nnbmax);
 			}
 			// assert(!overflow);
 			if(!overflow){
@@ -693,5 +693,3 @@ extern "C" {
 		GPUNB_regf(*ni, h2, dtr, xi, vi, acc, jrk, pot, *lmax, *nbmax, list);
 	}
 }
-
-

@@ -41,14 +41,18 @@
               R1 = 0.0
               IPREV = 0
           END IF
+          NX = 0
           I = 0
    15     I = I + 1
           IM = JLIST(I)
+*       Skip black holes and neutron stars from observational data.
+          IF (KSTAR(IM).GE.13) GO TO 15
           ZM = ZM + BODY(IM)
-*       Sum mass-weighted square velocity in current shell.
+*       Sum the square velocity in current shell.
           IF (ZM.GT.ZM1) THEN
-              VM2 = VM2 + BODY(IM)*(XDOT(1,IM)**2 + XDOT(2,IM)**2 +
-     &                                              XDOT(3,IM)**2)
+              VM2 = VM2 + (XDOT(1,IM)**2 + XDOT(2,IM)**2 +
+     &                                     XDOT(3,IM)**2)
+              NX = NX + 1
           END IF
           IF (ZM.LT.ZMH) GO TO 15
           RLAGR(IL) = SQRT(R2(I))
@@ -58,7 +62,7 @@
           IF (ABS(DM).LT.1.0D-10) THEN
               VR(IL) = 0.0
           ELSE
-              VR(IL) = SQRT(VM2/DM)
+              VR(IL) = SQRT(VM2/FLOAT(NX))
           END IF
           DV = 2.0*TWOPI/3.0*(R2(I)**1.5 - R1**3)
           DENS(IL) = DM/DV
@@ -111,7 +115,7 @@
    35     FORMAT (3X,'TIDAL RADIUS    TPHYS MRT RT ',F8.1,1P,2E10.2)
       END IF
 *
-*       Check output options (line printer or unit 7 or both).
+*       Check output options (line printer or unit 14 or both).
       IF (KZ(7).EQ.2.OR.KZ(7).EQ.4.AND.TIME.GE.TNEXT) THEN
           WRITE (6,40)  (LOG10(RLAGR(K)),K=1,LX)
    40     FORMAT (/,' LAGR:  ',13F7.3)

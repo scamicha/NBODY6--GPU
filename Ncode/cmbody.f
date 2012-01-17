@@ -309,13 +309,11 @@
    14     CONTINUE
       END IF
 *
-*       Ensure the heaviest body is new progenitor (only ICOMP is needed).
+*       Ensure NAME of the heaviest body is new progenitor.
       IF (BODY(I2).GT.BODY(I1)) THEN
-          I1S = I1
-          I1 = I2
-          I2 = I1S
-          ICOMP = I1
-          JCOMP = I2
+          NAM1 = NAME(I1)
+          NAME(I1) = NAME(I2)
+          NAME(I2) = NAM1
       END IF
 *
 *       Evaluate potential energy with respect to colliding bodies.
@@ -362,7 +360,7 @@
       BODY(I1) = ZM
       BODY(I2) = 0.0D0
       SPIN(I1) = (SPIN(I1) + SPIN(I2))*(1.0 - DM/ZM)
-      T0(I2) = TADJ + DTADJ 
+      T0(I2) = TADJ + DTADJ
       IF (KZ(23).EQ.0.OR.RTIDE.GT.1000.0*RSCALE) T0(I2) = 1.0D+10
       DTMAX = DTK(1)
       CALL DTCHCK(TIME,DTMAX,DTK(40))
@@ -487,7 +485,7 @@
 *
 *       Check creation of ghost(s) after collision of two white dwarfs.
    32 IF (KSTAR(I1).EQ.15) THEN
-          T0(I1) = TADJ + DTADJ 
+          T0(I1) = TADJ + DTADJ
           STEP(I1) = DTMAX
           DO 35 K = 1,3
               X0(K,I1) = 1000.0*RSCALE*X(K,I1)/RI
@@ -597,7 +595,7 @@
 *
 *       Open the second coalescence unit #26 first time.
       IF (FIRST.AND.(IQCOLL.EQ.3.OR.KSTARI.GE.10)) THEN
-          OPEN (UNIT=26,STATUS='NEW',FORM='FORMATTED',FILE='COAL2')
+          OPEN (UNIT=88,STATUS='NEW',FORM='FORMATTED',FILE='COAL2')
           FIRST = .FALSE.
 *
 *       Print cluster scaling parameters at start of the run.
